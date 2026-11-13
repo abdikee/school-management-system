@@ -1,0 +1,96 @@
+# Docker Compose for Development (with hot reload)
+version: '3.8'
+
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:16-alpine
+    container_name: schoolms-postgres-dev
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: school_management
+    volumes:
+      - postgres_data_dev:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d school_management"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - schoolms-network-dev
+
+  # Backend API (NestJS) - Development with hot reload
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.dev
+    container_name: schoolms-backend-dev
+    environment:
+      NODE_ENV: development
+      PORT: 3000
+      API_PREFIX: api
+      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/school_management?schema=public
+      JWT_SECRET: your-super-secret-jwt-key-change-in-production
+      JWT_EXPIRES_IN: 15m
+      JWT_REFRESH_SECRET: your-super-secret-refresh-key-change-in-production
+      JWT_REFRESH_EXPIRES_IN: 7d
+      FRONTEND_URL: http://localhost:5173
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASS: ${SMTP_PASS:-}
+      EMAIL_FROM: ${EMAIL_FROM:-noreply@school.example.com}
+      UPLOAD_MAX_SIZE: 5242880
+      UPLOAD_DEST: ./uploads
+      REDIS_HOST: ${REDIS_HOST:-}
+      REDIS_PORT: ${REDIS_PORT:-6379}
+    ports:
+      - "3000:3000"
+      - "9229:9229"  # Debug port
+    volumes:
+      - ./backend/src:/app/src
+      - ./backend/prisma:/app/prisma
+      - ./backend/package.json:/app/package.json
+      - ./backend/tsconfig.json:/app/tsconfig.json
+      - ./backend/nest-cli.json:/app/nest-cli.json
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - schoolms-network-dev
+    command: npm run start:dev
+
+  # Frontend (React + Vite) - Development with hot reload
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.dev
+    container_name: schoolms-frontend-dev
+    environment:
+      VITE_API_URL: http://localhost:3000/api
+    ports:
+      - "5173:5173"
+    volumes:
+      - ./frontend/src:/app/src
+      - ./frontend/public:/app/public
+      - ./frontend/index.html:/app/index.html
+      - ./frontend/package.json:/app/package.json
+      - ./frontend/vite.config.ts:/app/vite.config.ts
+      - ./frontend/tsconfig*.json:/app/
+      - ./frontend/tailwind.config.js:/app/tailwind.config.js
+      - ./frontend/postcss.config.js:/app/postcss.config.js
+    depends_on:
+      - backend
+    networks:
+      - schoolms-network-dev
+    command: npm run dev -- --host
+
+volumes:
+  postgres_data_dev:
+
+networks:
+  schoolms-network-dev:
+    driver: bridge

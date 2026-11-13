@@ -16,8 +16,14 @@ const reportTabs = [
   { id: "enrollment", label: "Enrollment", icon: Users, component: AdminEnrollmentReports },
 ] as const;
 
+type ReportTabId = (typeof reportTabs)[number]["id"];
+
 export function AdminReports() {
-  const [activeTab, setActiveTab] = useState(reportTabs[0].id);
+  const [activeTab, setActiveTab] = useState<ReportTabId>(reportTabs[0].id);
+
+  const handleTabChange = (value: string) => {
+    setActiveTab(value as ReportTabId);
+  };
 
   return (
     <div className="space-y-6">
@@ -87,7 +93,7 @@ export function AdminReports() {
       </div>
 
       {/* Main Report Tabs */}
-      <Tabs value={activeTab} onValueChange={setActiveTab}>
+      <Tabs value={activeTab} onValueChange={handleTabChange}>
         <TabsList className="grid w-full grid-cols-4">
           {reportTabs.map((tab) => (
             <TabsTrigger key={tab.id} value={tab.id} className="flex items-center justify-center gap-2">

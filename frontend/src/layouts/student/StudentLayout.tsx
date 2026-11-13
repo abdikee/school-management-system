@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { Outlet, NavLink, useLocation } from "react-router-dom";
-import { LayoutDashboard, Calendar, CheckCircle, Award, CreditCard, FileText, Settings, LogOut, Menu, X, School, BookOpen, Bell, ChevronDown, User, Clock } from "lucide-react";
+import { LayoutDashboard, Calendar, CheckCircle, Award, CreditCard, LogOut, Menu, X, School, Bell, ChevronDown } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/context/AuthContext";

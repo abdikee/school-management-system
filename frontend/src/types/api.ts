@@ -396,6 +396,7 @@ export interface DashboardOverview {
     totalRevenue?: number;
     pendingAmount?: number;
     overdueAmount?: number;
+    collectedAmount?: number;
   };
   recentEnrollments?: any[];
   unreadNotifications?: number;

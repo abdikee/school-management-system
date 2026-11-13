@@ -1,5 +1,5 @@
-import React, { useState } from "react";
-import { Outlet, NavLink, useLocation } from "react-router-dom";
+import { useState, useEffect } from "react";
+import { Outlet, useLocation } from "react-router-dom";
 import { Sidebar } from "@/components/layout/Sidebar";
 import { Header } from "@/components/layout/Header";
 import { cn } from "@/lib/utils";
@@ -9,7 +9,7 @@ export function MainLayout() {
   const location = useLocation();
 
   // Close sidebar on mobile when route changes
-  React.useEffect(() => {
+  useEffect(() => {
     if (window.innerWidth < 1024) {
       setSidebarOpen(false);
     }

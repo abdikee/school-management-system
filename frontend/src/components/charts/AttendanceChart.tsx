@@ -1,6 +1,5 @@
 "use client";
 
-import React from "react";
 import {
   BarChart,
   Bar,
@@ -45,172 +44,167 @@ export function AttendanceChart({
     );
   }
 
-  const chartConfig = {
-    present: { label: "Present", color: "hsl(var(--chart-1))" },
-    absent: { label: "Absent", color: "hsl(var(--chart-2))" },
-    late: { label: "Late", color: "hsl(var(--chart-3))" },
-    excused: { label: "Excused", color: "hsl(var(--chart-4))" },
-  };
+  if (type === "line") {
+    return (
+      <ResponsiveContainer width="100%" height={height} className={className}>
+        <LineChart data={data}>
+          <CartesianGrid strokeDasharray="3 3" opacity={0.2} />
+          <XAxis
+            dataKey="date"
+            tick={{ fontSize: 12 }}
+            tickLine={false}
+            axisLine={{ stroke: "hsl(var(--border))" }}
+          />
+          <YAxis
+            tick={{ fontSize: 12 }}
+            tickLine={false}
+            axisLine={{ stroke: "hsl(var(--border))" }}
+          />
+          <Tooltip
+            contentStyle={{
+              backgroundColor: "hsl(var(--background))",
+              border: "1px solid hsl(var(--border))",
+              borderRadius: "8px",
+            }}
+            labelFormatter={(value) => `Date: ${value}`}
+          />
+          <Legend />
+          <Line
+            type="monotone"
+            dataKey="present"
+            stroke="hsl(var(--chart-1))"
+            name="Present"
+            strokeWidth={2}
+            dot={{ r: 4 }}
+            activeDot={{ r: 6 }}
+          />
+          <Line
+            type="monotone"
+            dataKey="absent"
+            stroke="hsl(var(--chart-2))"
+            name="Absent"
+            strokeWidth={2}
+            dot={{ r: 4 }}
+            activeDot={{ r: 6 }}
+          />
+          <Line
+            type="monotone"
+            dataKey="late"
+            stroke="hsl(var(--chart-3))"
+            name="Late"
+            strokeWidth={2}
+            dot={{ r: 4 }}
+            activeDot={{ r: 6 }}
+          />
+          <Line
+            type="monotone"
+            dataKey="excused"
+            stroke="hsl(var(--chart-4))"
+            name="Excused"
+            strokeWidth={2}
+            dot={{ r: 4 }}
+            activeDot={{ r: 6 }}
+          />
+        </LineChart>
+      </ResponsiveContainer>
+    );
+  }
 
-  const CommonChart = () => (
-    <>
-      <CartesianGrid strokeDasharray="3 3" opacity={0.2} />
-      <XAxis
-        dataKey="date"
-        tick={{ fontSize: 12 }}
-        tickLine={false}
-        axisLine={{ stroke: "hsl(var(--border))" }}
-      />
-      <YAxis
-        tick={{ fontSize: 12 }}
-        tickLine={false}
-        axisLine={{ stroke: "hsl(var(--border))" }}
-      />
-      <Tooltip
-        contentStyle={{
-          backgroundColor: "hsl(var(--background))",
-          border: "1px solid hsl(var(--border))",
-          borderRadius: "8px",
-        }}
-        labelFormatter={(value) => `Date: ${value}`}
-      />
-      <Legend />
-      <Bar dataKey="present" fill="hsl(var(--chart-1))" name="Present" radius={[4, 4, 0, 0]} />
-      <Bar dataKey="absent" fill="hsl(var(--chart-2))" name="Absent" radius={[4, 4, 0, 0]} />
-      <Bar dataKey="late" fill="hsl(var(--chart-3))" name="Late" radius={[4, 4, 0, 0]} />
-      <Bar dataKey="excused" fill="hsl(var(--chart-4))" name="Excused" radius={[4, 4, 0, 0]} />
-    </>
-  );
-
-  const LineChartContent = () => (
-    <>
-      <CartesianGrid strokeDasharray="3 3" opacity={0.2} />
-      <XAxis
-        dataKey="date"
-        tick={{ fontSize: 12 }}
-        tickLine={false}
-        axisLine={{ stroke: "hsl(var(--border))" }}
-      />
-      <YAxis
-        tick={{ fontSize: 12 }}
-        tickLine={false}
-        axisLine={{ stroke: "hsl(var(--border))" }}
-      />
-      <Tooltip
-        contentStyle={{
-          backgroundColor: "hsl(var(--background))",
-          border: "1px solid hsl(var(--border))",
-          borderRadius: "8px",
-        }}
-        labelFormatter={(value) => `Date: ${value}`}
-      />
-      <Legend />
-      <Line
-        type="monotone"
-        dataKey="present"
-        stroke="hsl(var(--chart-1))"
-        name="Present"
-        strokeWidth={2}
-        dot={{ r: 4 }}
-        activeDot={{ r: 6 }}
-      />
-      <Line
-        type="monotone"
-        dataKey="absent"
-        stroke="hsl(var(--chart-2))"
-        name="Absent"
-        strokeWidth={2}
-        dot={{ r: 4 }}
-        activeDot={{ r: 6 }}
-      />
-      <Line
-        type="monotone"
-        dataKey="late"
-        stroke="hsl(var(--chart-3))"
-        name="Late"
-        strokeWidth={2}
-        dot={{ r: 4 }}
-        activeDot={{ r: 6 }}
-      />
-      <Line
-        type="monotone"
-        dataKey="excused"
-        stroke="hsl(var(--chart-4))"
-        name="Excused"
-        strokeWidth={2}
-        dot={{ r: 4 }}
-        activeDot={{ r: 6 }}
-      />
-    </>
-  );
-
-  const AreaChartContent = () => (
-    <>
-      <CartesianGrid strokeDasharray="3 3" opacity={0.2} />
-      <XAxis
-        dataKey="date"
-        tick={{ fontSize: 12 }}
-        tickLine={false}
-        axisLine={{ stroke: "hsl(var(--border))" }}
-      />
-      <YAxis
-        tick={{ fontSize: 12 }}
-        tickLine={false}
-        axisLine={{ stroke: "hsl(var(--border))" }}
-      />
-      <Tooltip
-        contentStyle={{
-          backgroundColor: "hsl(var(--background))",
-          border: "1px solid hsl(var(--border))",
-          borderRadius: "8px",
-        }}
-        labelFormatter={(value) => `Date: ${value}`}
-      />
-      <Legend />
-      <Area
-        type="monotone"
-        dataKey="present"
-        stroke="hsl(var(--chart-1))"
-        fill="hsl(var(--chart-1))"
-        fillOpacity={0.3}
-        name="Present"
-        strokeWidth={2}
-      />
-      <Area
-        type="monotone"
-        dataKey="absent"
-        stroke="hsl(var(--chart-2))"
-        fill="hsl(var(--chart-2))"
-        fillOpacity={0.3}
-        name="Absent"
-        strokeWidth={2}
-      />
-      <Area
-        type="monotone"
-        dataKey="late"
-        stroke="hsl(var(--chart-3))"
-        fill="hsl(var(--chart-3))"
-        fillOpacity={0.3}
-        name="Late"
-        strokeWidth={2}
-      />
-      <Area
-        type="monotone"
-        dataKey="excused"
-        stroke="hsl(var(--chart-4))"
-        fill="hsl(var(--chart-4))"
-        fillOpacity={0.3}
-        name="Excused"
-        strokeWidth={2}
-      />
-    </>
-  );
+  if (type === "area") {
+    return (
+      <ResponsiveContainer width="100%" height={height} className={className}>
+        <AreaChart data={data}>
+          <CartesianGrid strokeDasharray="3 3" opacity={0.2} />
+          <XAxis
+            dataKey="date"
+            tick={{ fontSize: 12 }}
+            tickLine={false}
+            axisLine={{ stroke: "hsl(var(--border))" }}
+          />
+          <YAxis
+            tick={{ fontSize: 12 }}
+            tickLine={false}
+            axisLine={{ stroke: "hsl(var(--border))" }}
+          />
+          <Tooltip
+            contentStyle={{
+              backgroundColor: "hsl(var(--background))",
+              border: "1px solid hsl(var(--border))",
+              borderRadius: "8px",
+            }}
+            labelFormatter={(value) => `Date: ${value}`}
+          />
+          <Legend />
+          <Area
+            type="monotone"
+            dataKey="present"
+            stroke="hsl(var(--chart-1))"
+            fill="hsl(var(--chart-1))"
+            fillOpacity={0.3}
+            name="Present"
+            strokeWidth={2}
+          />
+          <Area
+            type="monotone"
+            dataKey="absent"
+            stroke="hsl(var(--chart-2))"
+            fill="hsl(var(--chart-2))"
+            fillOpacity={0.3}
+            name="Absent"
+            strokeWidth={2}
+          />
+          <Area
+            type="monotone"
+            dataKey="late"
+            stroke="hsl(var(--chart-3))"
+            fill="hsl(var(--chart-3))"
+            fillOpacity={0.3}
+            name="Late"
+            strokeWidth={2}
+          />
+          <Area
+            type="monotone"
+            dataKey="excused"
+            stroke="hsl(var(--chart-4))"
+            fill="hsl(var(--chart-4))"
+            fillOpacity={0.3}
+            name="Excused"
+            strokeWidth={2}
+          />
+        </AreaChart>
+      </ResponsiveContainer>
+    );
+  }
 
   return (
     <ResponsiveContainer width="100%" height={height} className={className}>
-      {type === "bar" && <BarChart data={data} layout="vertical">{CommonChart()}</BarChart>}
-      {type === "line" && <LineChart data={data}>{LineChartContent()}</LineChart>}
-      {type === "area" && <AreaChart data={data}>{AreaChartContent()}</AreaChart>}
+      <BarChart data={data} layout="vertical">
+          <CartesianGrid strokeDasharray="3 3" opacity={0.2} />
+          <XAxis
+            dataKey="date"
+            tick={{ fontSize: 12 }}
+            tickLine={false}
+            axisLine={{ stroke: "hsl(var(--border))" }}
+          />
+          <YAxis
+            tick={{ fontSize: 12 }}
+            tickLine={false}
+            axisLine={{ stroke: "hsl(var(--border))" }}
+          />
+          <Tooltip
+            contentStyle={{
+              backgroundColor: "hsl(var(--background))",
+              border: "1px solid hsl(var(--border))",
+              borderRadius: "8px",
+            }}
+            labelFormatter={(value) => `Date: ${value}`}
+          />
+          <Legend />
+          <Bar dataKey="present" fill="hsl(var(--chart-1))" name="Present" radius={[4, 4, 0, 0]} />
+          <Bar dataKey="absent" fill="hsl(var(--chart-2))" name="Absent" radius={[4, 4, 0, 0]} />
+          <Bar dataKey="late" fill="hsl(var(--chart-3))" name="Late" radius={[4, 4, 0, 0]} />
+          <Bar dataKey="excused" fill="hsl(var(--chart-4))" name="Excused" radius={[4, 4, 0, 0]} />
+      </BarChart>
     </ResponsiveContainer>
   );
 }
@@ -255,7 +249,8 @@ export function AttendanceRateChart({
         />
         <YAxis
           domain={[0, 100]}
-          tick={{ fontSize: 12, formatter: (val) => `${val}%` }}
+          tick={{ fontSize: 12 }}
+          tickFormatter={(val) => `${val}%`}
           tickLine={false}
           axisLine={{ stroke: "hsl(var(--border))" }}
         />
@@ -367,7 +362,8 @@ export function FinanceChart({
           axisLine={{ stroke: "hsl(var(--border))" }}
         />
         <YAxis
-          tick={{ fontSize: 12, formatter: (val) => `$${val.toLocaleString()}` }}
+          tick={{ fontSize: 12 }}
+          tickFormatter={(val) => `$${val.toLocaleString()}`}
           tickLine={false}
           axisLine={{ stroke: "hsl(var(--border))" }}
         />

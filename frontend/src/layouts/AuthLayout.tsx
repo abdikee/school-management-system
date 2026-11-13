@@ -1,7 +1,5 @@
-import React from "react";
 import { Outlet } from "react-router-dom";
 import { School } from "lucide-react";
-import { cn } from "@/lib/utils";
 
 export function AuthLayout() {
   return (

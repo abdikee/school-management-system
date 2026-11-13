@@ -2,14 +2,14 @@
 
 import { useState } from "react";
 import { Outlet, NavLink, useLocation } from "react-router-dom";
-import { LayoutDashboard, Users, Building2, Calendar, CheckCircle, Award, DollarSign, MessageSquare, BarChart3, Settings, LogOut, Menu, X, ChevronDown, School, GraduationCap, UserPlus, CreditCard, FileText, Bell } from "lucide-react";
+import { LayoutDashboard, Users, CheckCircle, Award, DollarSign, MessageSquare, BarChart3, Settings, LogOut, Menu, X, ChevronDown, School, GraduationCap, Bell } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/context/AuthContext";
 import { useLogout } from "@/hooks/useAuth";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { Sidebar, SidebarContent, SidebarFooter, SidebarGroup, SidebarGroupContent, SidebarGroupLabel, SidebarMenu, SidebarMenuButton, SidebarMenuItem, SidebarMenuSub, SidebarMenuSubButton, SidebarMenuSubItem } from "@/components/ui/sidebar";
+import { Sidebar, SidebarContent, SidebarFooter, SidebarGroup, SidebarGroupContent, SidebarGroupLabel, SidebarMenu, SidebarMenuButton, SidebarMenuItem } from "@/components/ui/sidebar";
 
 const navigation = [
   { name: "Dashboard", href: "/admin/dashboard", icon: LayoutDashboard },
@@ -27,7 +27,7 @@ export function AdminLayout() {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const location = useLocation();
-  const { user, clearAuth } = useAuth();
+  const { user } = useAuth();
   const logoutMutation = useLogout();
 
   const handleLogout = () => {
