@@ -337,8 +337,6 @@ export class CommunicationService {
       },
       include: {
         author: { select: { id: true, firstName: true, lastName: true, email: true, avatar: true, role: true } },
-        targetClass: { include: { gradeLevel: true } },
-        targetGradeLevel: true,
       },
     });
 
@@ -399,8 +397,6 @@ export class CommunicationService {
         orderBy: { createdAt: 'desc' },
         include: {
           author: { select: { id: true, firstName: true, lastName: true, email: true, avatar: true, role: true } },
-          targetClass: { include: { gradeLevel: true } },
-          targetGradeLevel: true,
         },
       }),
       this.prisma.announcement.count({ where }),
@@ -414,8 +410,6 @@ export class CommunicationService {
       where: { id },
       include: {
         author: { select: { id: true, firstName: true, lastName: true, email: true, avatar: true, role: true } },
-        targetClass: { include: { gradeLevel: true } },
-        targetGradeLevel: true,
       },
     });
 
@@ -446,8 +440,6 @@ export class CommunicationService {
       data,
       include: {
         author: { select: { id: true, firstName: true, lastName: true, email: true, avatar: true, role: true } },
-        targetClass: { include: { gradeLevel: true } },
-        targetGradeLevel: true,
       },
     });
   }
@@ -474,8 +466,6 @@ export class CommunicationService {
       data: { isPublished: true, publishedAt: new Date() },
       include: {
         author: { select: { id: true, firstName: true, lastName: true, email: true, avatar: true, role: true } },
-        targetClass: { include: { gradeLevel: true } },
-        targetGradeLevel: true,
       },
     });
 
@@ -503,8 +493,6 @@ export class CommunicationService {
       data: { isPublished: false, publishedAt: null },
       include: {
         author: { select: { id: true, firstName: true, lastName: true, email: true, avatar: true, role: true } },
-        targetClass: { include: { gradeLevel: true } },
-        targetGradeLevel: true,
       },
     });
   }
@@ -604,8 +592,6 @@ export class CommunicationService {
         orderBy: { publishedAt: 'desc' },
         include: {
           author: { select: { id: true, firstName: true, lastName: true, email: true, avatar: true, role: true } },
-          targetClass: { include: { gradeLevel: true } },
-          targetGradeLevel: true,
         },
       }),
       this.prisma.announcement.count({ where }),
@@ -680,7 +666,7 @@ export class CommunicationService {
     // TODO: Implement email/SMS/push sending based on channels
     // This would integrate with email service (nodemailer), SMS provider (Twilio), push service (Firebase)
     // For now, we'll just mark as sent for in-app
-    const sentChannels = [NotificationChannel.IN_APP];
+    const sentChannels: NotificationChannel[] = [NotificationChannel.IN_APP];
 
     // Simulate sending other channels
     if (data.sendEmail) sentChannels.push(NotificationChannel.EMAIL);

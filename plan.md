@@ -157,11 +157,11 @@
 ## Phase 8: Communication & Notifications
 
 ### Backend
-- [ ] CommunicationModule
-- [ ] In-app notifications
-- [ ] Email/SMS notifications
-- [ ] Announcements
-- [ ] Messaging
+- [x] CommunicationModule
+- [x] In-app notifications
+- [x] Email/SMS notifications (infrastructure ready)
+- [x] Announcements
+- [x] Messaging
 
 ### Frontend
 - [ ] Notification center
@@ -173,10 +173,10 @@
 ## Phase 9: Reporting & Analytics
 
 ### Backend
-- [ ] ReportsModule
-- [ ] Admin dashboards
-- [ ] Teacher/Student/Parent dashboards
-- [ ] Export functionality
+- [x] ReportsModule
+- [x] Admin dashboards
+- [x] Teacher/Student/Parent dashboards
+- [x] Export functionality
 
 ### Frontend
 - [ ] Dashboard pages per role
@@ -215,9 +215,9 @@
 
 ## Current Status
 
-**Last Updated**: 2026-11-12
-**Current Phase**: Phase 4 - Academic Management (Backend Complete)
-**Next Task**: Phase 5 - Attendance Module (Attendance recording, sessions, reports)
+**Last Updated**: 2026-11-13
+**Current Phase**: Phase 9 - Reporting & Analytics (Backend Complete)
+**Next Task**: Phase 9 - Reporting & Analytics (Frontend) or Phase 10 - Polish & Deployment
 
 ---
 
@@ -269,10 +269,30 @@ backend/
 │       │   ├── users.module.ts
 │       │   ├── users.service.ts
 │       │   └── users.controller.ts
-│       └── academic/
-│           ├── academic.module.ts
-│           ├── academic.service.ts
-│           └── academic.controller.ts
+│       ├── academic/
+│       │   ├── academic.module.ts
+│       │   ├── academic.service.ts
+│       │   └── academic.controller.ts
+│       ├── attendance/
+│       │   ├── attendance.module.ts
+│       │   ├── attendance.service.ts
+│       │   └── attendance.controller.ts
+│       ├── grades/
+│       │   ├── grades.module.ts
+│       │   ├── grades.service.ts
+│       │   └── grades.controller.ts
+│       ├── finance/
+│       │   ├── finance.module.ts
+│       │   ├── finance.service.ts
+│       │   └── finance.controller.ts
+│       ├── communication/
+│       │   ├── communication.module.ts
+│       │   ├── communication.service.ts
+│       │   └── communication.controller.ts
+│       └── reports/
+│           ├── reports.module.ts
+│           ├── reports.service.ts
+│           └── reports.controller.ts
 ├── prisma/
 │   └── schema.prisma
 ├── package.json

@@ -10,7 +10,7 @@ import { AttendanceModule } from './modules/attendance/attendance.module';
 import { GradesModule } from './modules/grades/grades.module';
 import { FinanceModule } from './modules/finance/finance.module';
 import { CommunicationModule } from './modules/communication/communication.module';
-// import { ReportsModule } from './modules/reports/reports.module';
+import { ReportsModule } from './modules/reports/reports.module';
 
 import appConfig from './config/app.config';
 import databaseConfig from './config/database.config';
@@ -33,7 +33,7 @@ import { RolesGuard } from './common/guards/roles.guard';
     GradesModule,
     FinanceModule,
     CommunicationModule,
-    // ReportsModule,
+    ReportsModule,
   ],
   providers: [
     {
