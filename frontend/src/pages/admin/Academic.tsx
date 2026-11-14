@@ -7,8 +7,6 @@ import { useMutation } from "@tanstack/react-query";
 import {
   Card,
   CardContent,
-  CardHeader,
-  CardTitle,
 } from "@/components/ui/card";
 import {
   Table,
@@ -20,7 +18,6 @@ import {
 } from "@/components/ui/table";
 import {
   Tabs,
-  TabsContent,
   TabsList,
   TabsTrigger,
 } from "@/components/ui/tabs";
@@ -56,18 +53,12 @@ import {
   Clock,
   Plus,
   Search,
-  Filter,
-  Edit,
   Trash2,
   Eye,
   Loader2,
-  ChevronDown,
-  ChevronUp,
-  ArrowUpDown,
 } from "lucide-react";
-import { cn } from "@/lib/utils";
 import { toast } from "sonner";
-import { School, AcademicYear, GradeLevel, Subject, Class, TimetableEntry } from "@/types/api";
+import type { School, AcademicYear, GradeLevel, Subject, Class, TimetableEntry } from "@/types/api";
 
 const academicTabs = [
   { id: "schools", label: "Schools", icon: Building2 },
@@ -82,9 +73,10 @@ type AcademicTab = (typeof academicTabs)[number]["id"];
 
 export function AdminAcademic() {
   const [activeTab, setActiveTab] = useState<AcademicTab>("schools");
+  const handleTabChange = (value: string) => setActiveTab(value as AcademicTab);
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(10);
+  const [pageSize, _setPageSize] = useState(10);
   const [selectedSchoolId, setSelectedSchoolId] = useState("");
   const [selectedGradeLevelId, setSelectedGradeLevelId] = useState("");
   const [selectedAcademicYearId, setSelectedAcademicYearId] = useState("");
@@ -139,8 +131,8 @@ export function AdminAcademic() {
   // ACADEMIC YEARS
   // ============================================
   const { data: academicYearsData, isLoading: academicYearsLoading } = useQuery({
-    queryKey: ["academic-years", selectedSchoolId, search, page, pageSize],
-    queryFn: () => academicApi.getAcademicYears(selectedSchoolId, { skip: (page - 1) * pageSize, take: pageSize, search: search || undefined }),
+    queryKey: ["academic-years", selectedSchoolId, page, pageSize],
+    queryFn: () => academicApi.getAcademicYears(selectedSchoolId, { skip: (page - 1) * pageSize, take: pageSize }),
     enabled: !!selectedSchoolId,
   });
 
@@ -178,8 +170,8 @@ export function AdminAcademic() {
   // GRADE LEVELS
   // ============================================
   const { data: gradeLevelsData, isLoading: gradeLevelsLoading } = useQuery({
-    queryKey: ["grade-levels", selectedSchoolId, search, page, pageSize],
-    queryFn: () => academicApi.getGradeLevels(selectedSchoolId, { skip: (page - 1) * pageSize, take: pageSize, search: search || undefined }),
+    queryKey: ["grade-levels", selectedSchoolId, page, pageSize],
+    queryFn: () => academicApi.getGradeLevels(selectedSchoolId, { skip: (page - 1) * pageSize, take: pageSize }),
     enabled: !!selectedSchoolId,
   });
 
@@ -217,8 +209,8 @@ export function AdminAcademic() {
   // SUBJECTS
   // ============================================
   const { data: subjectsData, isLoading: subjectsLoading } = useQuery({
-    queryKey: ["subjects", selectedGradeLevelId, search, page, pageSize],
-    queryFn: () => academicApi.getSubjects(selectedGradeLevelId, { skip: (page - 1) * pageSize, take: pageSize, search: search || undefined }),
+    queryKey: ["subjects", selectedGradeLevelId, page, pageSize],
+    queryFn: () => academicApi.getSubjects(selectedGradeLevelId, { skip: (page - 1) * pageSize, take: pageSize }),
     enabled: !!selectedGradeLevelId,
   });
 
@@ -399,23 +391,6 @@ export function AdminAcademic() {
     }
   };
 
-  const getCurrentTotal = () => {
-    switch (activeTab) {
-      case "schools":
-        return schoolsData?.meta?.total || 0;
-      case "academic-years":
-        return academicYearsData?.meta?.total || 0;
-      case "grade-levels":
-        return gradeLevelsData?.meta?.total || 0;
-      case "subjects":
-        return subjectsData?.meta?.total || 0;
-      case "classes":
-        return classesData?.meta?.total || 0;
-      default:
-        return 0;
-    }
-  };
-
   const renderTabContent = () => {
     const data = getCurrentData();
     const isLoading = getCurrentLoading();
@@ -431,17 +406,17 @@ export function AdminAcademic() {
 
     switch (activeTab) {
       case "schools":
-        return renderSchoolsTable(data);
+        return renderSchoolsTable(data as School[]);
       case "academic-years":
-        return renderAcademicYearsTable(data);
+        return renderAcademicYearsTable(data as AcademicYear[]);
       case "grade-levels":
-        return renderGradeLevelsTable(data);
+        return renderGradeLevelsTable(data as GradeLevel[]);
       case "subjects":
-        return renderSubjectsTable(data);
+        return renderSubjectsTable(data as Subject[]);
       case "classes":
-        return renderClassesTable(data);
+        return renderClassesTable(data as Class[]);
       case "timetable":
-        return renderTimetableTable(data);
+        return renderTimetableTable(data as TimetableEntry[]);
     }
   };
 
@@ -587,7 +562,8 @@ export function AdminAcademic() {
                       </TableRow>
                     ))
                   )}
-                </TableBody              </Table>
+                </TableBody>
+              </Table>
             </div>
           )}
           {!selectedSchoolId && (
@@ -983,7 +959,7 @@ export function AdminAcademic() {
       </div>
 
       {/* Tabs */}
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
+      <Tabs value={activeTab} onValueChange={handleTabChange} className="space-y-4">
         <TabsList className="grid w-full grid-cols-3 md:grid-cols-6">
           {academicTabs.map((tab) => (
             <TabsTrigger key={tab.id} value={tab.id} className="flex items-center justify-center gap-2">
@@ -1106,7 +1082,7 @@ function AcademicForm({
     resolver: zodResolver(
       z.object({}).passthrough()
     ),
-    defaultValues: getDefaultValues(tab, item, schools, academicYears, gradeLevels, classes),
+    defaultValues: getDefaultValues(tab, item, schools, academicYears, gradeLevels, classes, subjects),
   });
 
   const renderFields = () => {
@@ -1291,7 +1267,7 @@ function AcademicForm({
                     <FormControl><SelectTrigger><SelectValue placeholder="Select day" /></SelectTrigger></FormControl>
                     <SelectContent>
                       {["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"].map((day, i) => (
-                        <SelectItem key={i} value={i}>{day}</SelectItem>
+                        <SelectItem key={i} value={i.toString()}>{day}</SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
@@ -1339,7 +1315,7 @@ function AcademicForm({
   );
 }
 
-function getDefaultValues(tab: AcademicTab, item: any, schools: School[], academicYears: AcademicYear[], gradeLevels: GradeLevel[], classes: Class[]) {
+function getDefaultValues(tab: AcademicTab, item: any, _schools: School[], academicYears: AcademicYear[], gradeLevels: GradeLevel[], _classes: Class[], subjects: Subject[]) {
   if (item) {
     return item;
   }

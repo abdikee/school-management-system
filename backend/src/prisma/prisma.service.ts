@@ -18,16 +18,16 @@ export class PrismaService extends PrismaClient implements OnModuleInit, OnModul
   async onModuleInit() {
     // Enable query logging in development
     if (process.env.NODE_ENV === 'development') {
-      this.$on('query', (e) => {
+      (this as unknown as { $on: (event: 'query', callback: (e: { query: string; params: string; duration: number }) => void) => void }).$on('query', (e) => {
         this.logger.debug(`Query: ${e.query} | Params: ${e.params} | Duration: ${e.duration}ms`);
       });
     }
 
-    this.$on('error', (e) => {
+    (this as unknown as { $on: (event: 'error', callback: (e: { message: string }) => void) => void }).$on('error', (e) => {
       this.logger.error(`Database Error: ${e.message}`);
     });
 
-    this.$on('warn', (e) => {
+    (this as unknown as { $on: (event: 'warn', callback: (e: { message: string }) => void) => void }).$on('warn', (e) => {
       this.logger.warn(`Database Warning: ${e.message}`);
     });
 
@@ -46,12 +46,14 @@ export class PrismaService extends PrismaClient implements OnModuleInit, OnModul
     }
     const models = Reflect.ownKeys(this).filter(
       (key) => typeof key === 'string' && !key.startsWith('_') && !key.startsWith('$'),
-    );
+    ) as string[];
     return Promise.all(
       models.map((model) => {
-        if (typeof this[model as string]?.deleteMany === 'function') {
-          return this[model as string].deleteMany();
+        const modelDelegate = (this as Record<string, unknown>)[model];
+        if (modelDelegate && typeof modelDelegate === 'object' && 'deleteMany' in modelDelegate && typeof (modelDelegate as { deleteMany: unknown }).deleteMany === 'function') {
+          return (modelDelegate as { deleteMany: () => Promise<unknown> }).deleteMany();
         }
+        return Promise.resolve();
       }),
     );
   }

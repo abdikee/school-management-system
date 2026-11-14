@@ -2,8 +2,9 @@ import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { PassportStrategy } from '@nestjs/passport';
 import { ExtractJwt, Strategy } from 'passport-jwt';
 import { ConfigService } from '@nestjs/config';
-import { PrismaService } from '../../prisma/prisma.service';
+import { PrismaService } from '../../../prisma/prisma.service';
 import { UserStatus } from '@prisma/client';
+import { Request } from 'express';
 
 @Injectable()
 export class JwtRefreshStrategy extends PassportStrategy(Strategy, 'jwt-refresh') {
@@ -13,11 +14,11 @@ export class JwtRefreshStrategy extends PassportStrategy(Strategy, 'jwt-refresh'
   ) {
     super({
       jwtFromRequest: ExtractJwt.fromExtractors([
-        (req) => req?.cookies?.refreshToken,
-        (req) => req?.body?.refreshToken,
+        (req: Request) => ((req as unknown as { cookies?: Record<string, string> }).cookies?.refreshToken ?? null),
+        (req: Request) => ((req as unknown as { body?: Record<string, unknown> }).body?.refreshToken as string ?? null),
       ]),
       ignoreExpiration: false,
-      secretOrKey: configService.get<string>('jwt.refreshSecret'),
+      secretOrKey: configService.get<string>('jwt.refreshSecret') || '',
       passReqToCallback: true,
     });
   }
@@ -27,14 +28,15 @@ export class JwtRefreshStrategy extends PassportStrategy(Strategy, 'jwt-refresh'
       throw new UnauthorizedException('Invalid token type');
     }
 
-    const refreshToken = req.cookies?.refreshToken || req.body?.refreshToken;
+    const refreshToken = ((req as unknown as { cookies?: Record<string, string> }).cookies?.refreshToken) ||
+                         ((req as unknown as { body?: Record<string, unknown> }).body?.refreshToken as string);
     if (!refreshToken) {
       throw new UnauthorizedException('Refresh token not provided');
     }
 
     const storedToken = await this.prisma.refreshToken.findUnique({
       where: { token: refreshToken },
-      include: { user: true },
+      include: { user: { include: { refreshTokens: true } } },
     });
 
     if (!storedToken) {

@@ -89,6 +89,11 @@ export interface Class {
   gradeLevel?: GradeLevel;
   academicYear?: AcademicYear;
   homeroomTeacher?: Teacher;
+  _count?: {
+    students: number;
+    classSubjects: number;
+    timetableEntries: number;
+  };
 }
 
 export interface Teacher {
@@ -276,6 +281,9 @@ export interface TimetableEntry {
   isActive: boolean;
   createdAt: string;
   updatedAt: string;
+  subject?: Subject;
+  teacher?: Teacher;
+  class?: Class;
 }
 
 export interface Message {

@@ -63,7 +63,7 @@ export class AcademicService {
       include: {
         academicYears: { orderBy: { startDate: 'desc' } },
         gradeLevels: { orderBy: { order: 'asc' } },
-        _count: { select: { users: true, classes: true } },
+        _count: { select: { users: true } },
       },
     });
 

@@ -557,7 +557,8 @@ export function AdminFinance() {
                     </TableRow>
                   ))
                 )}
-              </TableBody            </Table>
+              </TableBody>
+            </Table>
           </div>
 
           {/* Pagination */}

@@ -253,7 +253,40 @@ export const reportsApi = {
 
 // Attendance API
 export const attendanceApi = {
-  // Add attendance endpoints when needed
+  // Sessions
+  createAttendanceSession: (data: any): Promise<any> => api.post("/attendance/sessions", data) as unknown as Promise<any>,
+  getAttendanceSessions: (params?: { skip?: number; take?: number; classId?: string; teacherId?: string; subjectId?: string; date?: string; dateFrom?: string; dateTo?: string; status?: string }): Promise<any> =>
+    api.get("/attendance/sessions", { params }) as unknown as Promise<any>,
+  getMyAttendanceSessions: (params?: { date?: string; dateFrom?: string; dateTo?: string; status?: string }): Promise<any> =>
+    api.get("/attendance/sessions/my", { params }) as unknown as Promise<any>,
+  getMyTodaysSessions: (): Promise<any> => api.get("/attendance/sessions/today") as unknown as Promise<any>,
+  getAttendanceSessionById: (id: string): Promise<any> => api.get(`/attendance/sessions/${id}`) as unknown as Promise<any>,
+  updateAttendanceSession: (id: string, data: any): Promise<any> => api.put(`/attendance/sessions/${id}`, data) as unknown as Promise<any>,
+  closeAttendanceSession: (id: string): Promise<any> => api.put(`/attendance/sessions/${id}/close`) as unknown as Promise<any>,
+  cancelAttendanceSession: (id: string): Promise<any> => api.put(`/attendance/sessions/${id}/cancel`) as unknown as Promise<any>,
+  deleteAttendanceSession: (id: string): Promise<void> => api.delete(`/attendance/sessions/${id}`) as unknown as Promise<void>,
+
+  // Records
+  recordAttendance: (data: any): Promise<any> => api.post("/attendance/records", data) as unknown as Promise<any>,
+  bulkRecordAttendance: (data: any): Promise<any> => api.post("/attendance/records/bulk", data) as unknown as Promise<any>,
+  getAttendances: (params?: { skip?: number; take?: number; studentId?: string; classId?: string; subjectId?: string; sessionId?: string; date?: string; dateFrom?: string; dateTo?: string; status?: string }): Promise<any> =>
+    api.get("/attendance/records", { params }) as unknown as Promise<any>,
+  getAttendanceById: (id: string): Promise<any> => api.get(`/attendance/records/${id}`) as unknown as Promise<any>,
+  updateAttendance: (id: string, data: any): Promise<any> => api.put(`/attendance/records/${id}`, data) as unknown as Promise<any>,
+  deleteAttendance: (id: string): Promise<void> => api.delete(`/attendance/records/${id}`) as unknown as Promise<void>,
+
+  // Class today
+  getTodaysAttendance: (classId: string, subjectId?: string): Promise<any> => api.get(`/attendance/classes/${classId}/today`, { params: { subjectId } }) as unknown as Promise<any>,
+
+  // Reports
+  getClassAttendanceReport: (classId: string, params?: { dateFrom?: string; dateTo?: string; subjectId?: string }): Promise<any> =>
+    api.get(`/attendance/reports/class/${classId}`, { params }) as unknown as Promise<any>,
+  getStudentAttendanceReport: (studentId: string, params?: { dateFrom?: string; dateTo?: string; classId?: string; subjectId?: string }): Promise<any> =>
+    api.get(`/attendance/reports/student/${studentId}`, { params }) as unknown as Promise<any>,
+  getAttendanceStats: (params?: { dateFrom?: string; dateTo?: string; classId?: string }): Promise<any> =>
+    api.get("/attendance/reports/stats", { params }) as unknown as Promise<any>,
+  getLowAttendanceAlerts: (params?: { threshold?: number; dateFrom?: string; dateTo?: string; classId?: string }): Promise<any> =>
+    api.get("/attendance/reports/low-attendance", { params }) as unknown as Promise<any>,
 };
 
 // Grades API

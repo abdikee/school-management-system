@@ -278,6 +278,7 @@ export class AuthService {
         student: true,
         teacher: true,
         parent: true,
+        refreshTokens: true,
       },
     });
 
@@ -297,6 +298,7 @@ export class AuthService {
         student: true,
         teacher: true,
         parent: true,
+        refreshTokens: true,
       },
     });
 
@@ -306,7 +308,7 @@ export class AuthService {
 
   private async generateRefreshToken(userId: string): Promise<string> {
     const refreshSecret = this.configService.get<string>('jwt.refreshSecret');
-    const refreshExpiresIn = this.configService.get<string>('jwt.refreshExpiresIn');
+    const refreshExpiresIn = this.configService.get<string>('jwt.refreshExpiresIn') || '7d';
 
     const token = this.jwtService.sign(
       { sub: userId, type: 'refresh' },

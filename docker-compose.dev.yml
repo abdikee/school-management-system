@@ -7,15 +7,15 @@ services:
     image: postgres:16-alpine
     container_name: schoolms-postgres-dev
     environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
+      POSTGRES_USER: abdi
+      POSTGRES_PASSWORD: abdiKe@3132
       POSTGRES_DB: school_management
     volumes:
       - postgres_data_dev:/var/lib/postgresql/data
     ports:
-      - "5432:5432"
+      - "5433:5432"
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres -d school_management"]
+      test: ["CMD-SHELL", "pg_isready -U abdi -d school_management"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -32,7 +32,7 @@ services:
       NODE_ENV: development
       PORT: 3000
       API_PREFIX: api
-      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/school_management?schema=public
+      DATABASE_URL: postgresql://abdi:abdiKe@3132@postgres:5432/school_management?schema=public
       JWT_SECRET: your-super-secret-jwt-key-change-in-production
       JWT_EXPIRES_IN: 15m
       JWT_REFRESH_SECRET: your-super-secret-refresh-key-change-in-production
@@ -79,7 +79,9 @@ services:
       - ./frontend/index.html:/app/index.html
       - ./frontend/package.json:/app/package.json
       - ./frontend/vite.config.ts:/app/vite.config.ts
-      - ./frontend/tsconfig*.json:/app/
+      - ./frontend/tsconfig.json:/app/tsconfig.json
+      - ./frontend/tsconfig.app.json:/app/tsconfig.app.json
+      - ./frontend/tsconfig.node.json:/app/tsconfig.node.json
       - ./frontend/tailwind.config.js:/app/tailwind.config.js
       - ./frontend/postcss.config.js:/app/postcss.config.js
     depends_on:

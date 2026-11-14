@@ -121,6 +121,7 @@ export class UsersController {
   }) {
     return this.usersService.createStudent({
       ...data,
+      role: UserRole.STUDENT,
       dateOfBirth: new Date(data.dateOfBirth),
     });
   }
@@ -208,6 +209,7 @@ export class UsersController {
   }) {
     return this.usersService.createTeacher({
       ...data,
+      role: UserRole.TEACHER,
       hireDate: new Date(data.hireDate),
     });
   }
@@ -265,7 +267,10 @@ export class UsersController {
     address?: string;
     schoolId?: string;
   }) {
-    return this.usersService.createParent(data);
+    return this.usersService.createParent({
+      ...data,
+      role: UserRole.PARENT,
+    });
   }
 
   @Get('parents')

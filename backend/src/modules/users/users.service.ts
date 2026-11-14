@@ -54,8 +54,9 @@ export class UsersService {
     take?: number;
     where?: Prisma.UserWhereInput;
     orderBy?: Prisma.UserOrderByWithRelationInput;
+    includeRefreshTokens?: boolean;
   }) {
-    const { skip, take, where, orderBy } = params;
+    const { skip, take, where, orderBy, includeRefreshTokens } = params;
     const [data, total] = await Promise.all([
       this.prisma.user.findMany({
         skip,
@@ -66,6 +67,7 @@ export class UsersService {
           student: true,
           teacher: true,
           parent: true,
+          refreshTokens: includeRefreshTokens,
         },
       }),
       this.prisma.user.count({ where }),
@@ -89,6 +91,7 @@ export class UsersService {
         student: true,
         teacher: true,
         parent: true,
+        refreshTokens: true,
       },
     });
 
@@ -112,6 +115,7 @@ export class UsersService {
         student: true,
         teacher: true,
         parent: true,
+        refreshTokens: true,
       },
     });
 
@@ -175,7 +179,7 @@ export class UsersService {
           },
         },
       },
-      include: { student: true },
+      include: { student: true, refreshTokens: true },
     });
 
     const { passwordHash: _, refreshTokens, ...result } = user;
@@ -208,7 +212,7 @@ export class UsersService {
         take,
         where,
         include: {
-          user: true,
+          user: { include: { refreshTokens: true } },
           class: { include: { gradeLevel: true } },
           gradeLevel: true,
           parent: { include: { user: true } },
@@ -232,7 +236,7 @@ export class UsersService {
     const student = await this.prisma.student.findUnique({
       where: { id },
       include: {
-        user: true,
+        user: { include: { refreshTokens: true } },
         class: { include: { gradeLevel: true, academicYear: true } },
         gradeLevel: true,
         parent: { include: { user: true } },
@@ -307,11 +311,11 @@ export class UsersService {
             employeeId: data.employeeId,
             hireDate: data.hireDate,
             qualification: data.qualification,
-            subjects: data.subjects || [],
+            taughtSubjects: data.subjects || [],
           },
         },
       },
-      include: { teacher: true },
+      include: { teacher: true, refreshTokens: true },
     });
 
     const { passwordHash: _, refreshTokens, ...result } = user;
@@ -340,7 +344,7 @@ export class UsersService {
         take,
         where,
         include: {
-          user: true,
+          user: { include: { refreshTokens: true } },
           homeroomClasses: { include: { gradeLevel: true } },
           classSubjects: { include: { subject: true, class: true } },
         },
@@ -363,7 +367,7 @@ export class UsersService {
     const teacher = await this.prisma.teacher.findUnique({
       where: { id },
       include: {
-        user: true,
+        user: { include: { refreshTokens: true } },
         homeroomClasses: { include: { gradeLevel: true, academicYear: true } },
         classSubjects: { include: { subject: true, class: { include: { gradeLevel: true } } } },
       },
@@ -419,7 +423,7 @@ export class UsersService {
           },
         },
       },
-      include: { parent: true },
+      include: { parent: true, refreshTokens: true },
     });
 
     const { passwordHash: _, refreshTokens, ...result } = user;
@@ -447,8 +451,8 @@ export class UsersService {
         take,
         where,
         include: {
-          user: true,
-          students: { include: { student: { include: { user: true, class: true } } } },
+          user: { include: { refreshTokens: true } },
+          parentRelations: { include: { student: { include: { user: true, class: true } } } },
         },
         orderBy: { user: { firstName: 'asc' } },
       }),
@@ -459,7 +463,7 @@ export class UsersService {
       data: data.map((parent) => {
         const { user, ...rest } = parent;
         const { passwordHash, refreshTokens, ...userData } = user;
-        return { ...rest, user: userData };
+        return { ...rest, user: userData, students: rest.parentRelations };
       }),
       total,
     };
@@ -469,8 +473,8 @@ export class UsersService {
     const parent = await this.prisma.parent.findUnique({
       where: { id },
       include: {
-        user: true,
-        students: {
+        user: { include: { refreshTokens: true } },
+        parentRelations: {
           include: {
             student: {
               include: {
@@ -491,7 +495,7 @@ export class UsersService {
 
     const { user, ...rest } = parent;
     const { passwordHash, refreshTokens, ...userData } = user;
-    return { ...rest, user: userData };
+    return { ...rest, user: userData, students: rest.parentRelations };
   }
 
   async updateParent(id: string, data: Prisma.ParentUpdateInput) {
@@ -547,7 +551,7 @@ export class UsersService {
             emailVerified: true,
           },
         });
-        const { passwordHash: _, refreshTokens, ...result } = user;
+        const { passwordHash: _, ...result } = user;
         results.push(result);
       } catch (error) {
         errors.push({ email: userData.email, error: error.message });

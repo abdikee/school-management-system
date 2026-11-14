@@ -20,7 +20,16 @@ import {
 } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Search, Download, CreditCard, AlertCircle, CheckCircle, Clock, DollarSign } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Search, Download, CreditCard, AlertCircle, CheckCircle, Clock, DollarSign, ChevronLeft, ChevronRight } from "lucide-react";
 import { cn, formatDate, formatCurrency } from "@/lib/utils";
 import { Invoice, Payment, FeeStructure } from "@/types/api";
 
@@ -449,9 +458,3 @@ function getInvoiceStatusVariant(status: string) {
     default: return "secondary";
   }
 }
-
-// Need to import Input, Label, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, ChevronLeft, ChevronRight
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ChevronLeft, ChevronRight } from "lucide-react";
