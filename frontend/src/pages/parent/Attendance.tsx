@@ -1,8 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { attendanceApi, usersApi, academicApi } from "@/services/api";
+import { attendanceApi, usersApi } from "@/services/api";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Table,
@@ -23,9 +23,18 @@ import {
 } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Calendar, ChevronLeft, ChevronRight, Today, Search, Download, AlertCircle, CheckCircle, Clock, BookOpen, Users } from "lucide-react";
+import { Calendar, ChevronLeft, ChevronRight, Search, Download, AlertCircle, CheckCircle, Clock, BookOpen, Users } from "lucide-react";
 import { cn, formatDate, formatDateTime } from "@/lib/utils";
-import { Attendance, Student, Class, AttendanceSession } from "@/types/api";
+import { Attendance, Student, Parent, AttendanceSession, Class, Subject, Teacher, User } from "@/types/api";
+
+// Extended Attendance type with optional expanded relations
+interface AttendanceWithRelations extends Attendance {
+  session?: AttendanceSession & {
+    class?: Class;
+    subject?: Subject;
+    teacher?: Teacher & { user?: User };
+  };
+}
 
 export function ParentAttendance() {
   const [search, setSearch] = useState("");
@@ -36,17 +45,33 @@ export function ParentAttendance() {
   const [dateTo, setDateTo] = useState("");
   const [selectedChildId, setSelectedChildId] = useState("");
 
-  // Get current parent's children
+  // Get current user profile
   const { data: currentUser } = useQuery({
     queryKey: ["current-user"],
     queryFn: () => usersApi.getProfile(),
   });
 
-  const children = currentUser?.data?.parent?.children || [];
+  // Get parent's children - fetch parent record if user is a parent
+  const { data: parentData, isLoading: parentLoading } = useQuery({
+    queryKey: ["parent-data", currentUser?.id],
+    queryFn: async () => {
+      if (!currentUser || currentUser.role !== "PARENT") return null;
+      // Try to get parent by userId - we need to use getParents and find the one with matching userId
+      const parentsResponse = await usersApi.getParents({ search: "", take: 100 });
+      const parent = parentsResponse.data.find((p: Parent) => p.userId === currentUser.id);
+      return parent;
+    },
+    enabled: !!currentUser && currentUser.role === "PARENT",
+  });
 
-  if (children.length > 0 && !selectedChildId) {
-    setSelectedChildId(children[0].id);
-  }
+  const children = parentData?.students || [];
+
+  // Auto-select first child if none selected
+  useEffect(() => {
+    if (children.length > 0 && !selectedChildId) {
+      setSelectedChildId(children[0].id);
+    }
+  }, [children, selectedChildId]);
 
   const selectedChild = children.find((c: Student) => c.id === selectedChildId);
 
@@ -55,11 +80,11 @@ export function ParentAttendance() {
   // ============================================
   const { data: attendanceData, isLoading } = useQuery({
     queryKey: ["parent-attendance", selectedChildId, search, statusFilter, dateFrom, dateTo, page, pageSize],
-    queryFn: () => attendanceApi.getAttendance({
+    queryFn: () => attendanceApi.getAttendances({
       studentId: selectedChildId || undefined,
       skip: (page - 1) * pageSize,
       take: pageSize,
-      search: search || undefined,
+      // search not supported by API
       status: statusFilter || undefined,
       dateFrom: dateFrom || undefined,
       dateTo: dateTo || undefined,
@@ -68,12 +93,13 @@ export function ParentAttendance() {
   });
 
   // ============================================
-  // ATTENDANCE SUMMARY
+  // ATTENDANCE SUMMARY (using stats endpoint)
   // ============================================
   const { data: summaryData } = useQuery({
     queryKey: ["parent-attendance-summary", selectedChildId, dateFrom, dateTo],
-    queryFn: () => attendanceApi.getAttendanceSummary({
-      studentId: selectedChildId || undefined,
+    queryFn: () => attendanceApi.getAttendanceStats({
+      // studentId not supported by getAttendanceStats, filter by class instead
+      classId: selectedChild?.classId || undefined,
       dateFrom: dateFrom || undefined,
       dateTo: dateTo || undefined,
     }),
@@ -85,14 +111,14 @@ export function ParentAttendance() {
   // ============================================
   const { data: sessionsData } = useQuery({
     queryKey: ["parent-attendance-sessions", selectedChildId],
-    queryFn: () => attendanceApi.getSessions({
+    queryFn: () => attendanceApi.getAttendanceSessions({
       classId: selectedChild?.classId || undefined,
       take: 20,
     }),
     enabled: !!selectedChildId,
   });
 
-  if (!selectedChild) {
+  if (parentLoading || !selectedChild) {
     return (
       <div className="space-y-6">
         <div>
@@ -102,7 +128,7 @@ export function ParentAttendance() {
         <Card>
           <CardContent className="py-12 text-center">
             <Users className="mx-auto h-12 w-12 text-gray-300 mb-4" />
-            <p className="text-gray-500">No children linked to your account</p>
+            <p className="text-gray-500">Loading children...</p>
           </CardContent>
         </Card>
       </div>
@@ -121,8 +147,8 @@ export function ParentAttendance() {
         </div>
         <div className="flex items-center gap-2">
           {children.length > 1 && (
-            <Select value={selectedChildId} onValueChange={setSelectedChildId} className="w-48">
-              <SelectTrigger><SelectValue placeholder="Select child" /></SelectTrigger>
+            <Select value={selectedChildId} onValueChange={setSelectedChildId}>
+              <SelectTrigger className="w-48"><SelectValue placeholder="Select child" /></SelectTrigger>
               <SelectContent>
                 {children.map((child: Student) => (
                   <SelectItem key={child.id} value={child.id}>
@@ -139,11 +165,11 @@ export function ParentAttendance() {
       <Card>
         <CardContent className="pt-6">
           <div className="grid gap-4 md:grid-cols-5">
-            <StatCard label="Attendance Rate" value={`${summaryData?.data?.attendanceRate?.toFixed(1) || "—"}%`} icon={CheckCircle} color="text-green-600" bg="bg-green-100" />
-            <StatCard label="Present" value={summaryData?.data?.presentCount || 0} icon={CheckCircle} color="text-green-600" bg="bg-green-100" />
-            <StatCard label="Absent" value={summaryData?.data?.absentCount || 0} icon={AlertCircle} color="text-red-600" bg="bg-red-100" />
-            <StatCard label="Late" value={summaryData?.data?.lateCount || 0} icon={Clock} color="text-yellow-600" bg="bg-yellow-100" />
-            <StatCard label="Excused" value={summaryData?.data?.excusedCount || 0} icon={BookOpen} color="text-blue-600" bg="bg-blue-100" />
+            <StatCard label="Attendance Rate" value={`${summaryData?.attendanceRate?.toFixed(1) || "—"}%`} icon={CheckCircle} color="text-green-600" bg="bg-green-100" />
+            <StatCard label="Present" value={summaryData?.presentCount || 0} icon={CheckCircle} color="text-green-600" bg="bg-green-100" />
+            <StatCard label="Absent" value={summaryData?.absentCount || 0} icon={AlertCircle} color="text-red-600" bg="bg-red-100" />
+            <StatCard label="Late" value={summaryData?.lateCount || 0} icon={Clock} color="text-yellow-600" bg="bg-yellow-100" />
+            <StatCard label="Excused" value={summaryData?.excusedCount || 0} icon={BookOpen} color="text-blue-600" bg="bg-blue-100" />
           </div>
         </CardContent>
       </Card>
@@ -225,12 +251,12 @@ export function ParentAttendance() {
                     </TableCell>
                   </TableRow>
                 ) : (
-                  attendanceData?.data?.map((attendance: Attendance) => (
+                  attendanceData?.data?.map((attendance: AttendanceWithRelations) => (
                     <TableRow key={attendance.id}>
                       <TableCell>{formatDate(attendance.date)}</TableCell>
-                      <TableCell>{attendance.session?.class?.name}</TableCell>
-                      <TableCell>{attendance.session?.subject?.name}</TableCell>
-                      <TableCell>{attendance.session?.teacher?.user?.firstName} {attendance.session?.teacher?.user?.lastName}</TableCell>
+                      <TableCell>{attendance.session?.class?.name || "—"}</TableCell>
+                      <TableCell>{attendance.session?.subject?.name || "—"}</TableCell>
+                      <TableCell>{attendance.session?.teacher?.user?.firstName} {attendance.session?.teacher?.user?.lastName || "—"}</TableCell>
                       <TableCell>
                         <Badge variant={getAttendanceBadgeVariant(attendance.status)}>
                           {attendance.status}

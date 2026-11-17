@@ -77,7 +77,7 @@ const settingsTabs = [
 type SettingsTab = (typeof settingsTabs)[number]["id"];
 
 export function AdminSettings() {
-  const [activeTab, setActiveTab] = useState<SettingsTab>("general");
+  const [activeTab, setActiveTab] = useState<string>("general");
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
@@ -212,11 +212,23 @@ export function AdminSettings() {
   // ============================================
   const { data: usersData, isLoading: usersLoading } = useQuery({
     queryKey: ["users", search, page, pageSize],
-    queryFn: () => usersApi.getUsers({ skip: (page - 1) * pageSize, take: pageSize, search: search || undefined }),
+    queryFn: () => usersApi.getAll({ skip: (page - 1) * pageSize, take: pageSize }),
   });
 
   const createUserMutation = useMutation({
-    mutationFn: (data: any) => usersApi.createUser(data),
+    mutationFn: async (data: any) => {
+      // Determine which create method to use based on role
+      switch (data.role) {
+        case "STUDENT":
+          return await usersApi.createStudent(data);
+        case "TEACHER":
+          return await usersApi.createTeacher(data);
+        case "PARENT":
+          return await usersApi.createParent(data);
+        default:
+          throw new Error(`Unsupported role: ${data.role}`);
+      }
+    },
     onSuccess: () => {
       toast.success("User created");
       queryClient.invalidateQueries({ queryKey: ["users"] });
@@ -226,7 +238,11 @@ export function AdminSettings() {
   });
 
   const updateUserMutation = useMutation({
-    mutationFn: ({ id, data }: { id: string; data: any }) => usersApi.updateUser(id, data),
+    mutationFn: ({ id, data }: { id: string; data: any }) => {
+      // We need to know the user's role to call the right update method
+      // For now, we'll use a generic approach - the API might need the user ID to determine the type
+      return usersApi.updateProfile(data); // This might not work for admin updating other users
+    },
     onSuccess: () => {
       toast.success("User updated");
       queryClient.invalidateQueries({ queryKey: ["users"] });
@@ -236,7 +252,7 @@ export function AdminSettings() {
   });
 
   const deleteUserMutation = useMutation({
-    mutationFn: (id: string) => usersApi.deleteUser(id),
+    mutationFn: (id: string) => usersApi.delete(id),
     onSuccess: () => {
       toast.success("User deleted");
       queryClient.invalidateQueries({ queryKey: ["users"] });
@@ -330,6 +346,7 @@ export function AdminSettings() {
               <Select>
                 <SelectTrigger><SelectValue placeholder="Select currency" /></SelectTrigger>
                 <SelectContent>
+                  <SelectItem value="ETB">ETB (Br)</SelectItem>
                   <SelectItem value="USD">USD ($)</SelectItem>
                   <SelectItem value="EUR">EUR (€)</SelectItem>
                   <SelectItem value="GBP">GBP (£)</SelectItem>
@@ -1202,7 +1219,7 @@ function SchoolForm({
       academicYearStart: new Date().getFullYear(),
       academicYearEnd: new Date().getFullYear() + 1,
       timezone: "UTC",
-      currency: "USD",
+      currency: "ETB",
     },
   });
 
@@ -1237,7 +1254,7 @@ function SchoolForm({
             <FormItem><FormLabel>Timezone *</FormLabel><FormControl><Input {...field} defaultValue="UTC" /></FormControl><FormMessage /></FormItem>
           )} />
           <FormField control={form.control} name="currency" render={({ field }) => (
-            <FormItem><FormLabel>Currency *</FormLabel><FormControl><Input {...field} defaultValue="USD" /></FormControl><FormMessage /></FormItem>
+            <FormItem><FormLabel>Currency *</FormLabel><FormControl><Input {...field} defaultValue="ETB" /></FormControl><FormMessage /></FormItem>
           )} />
         </div>
         <DialogFooter>

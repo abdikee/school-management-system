@@ -1,6 +1,23 @@
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { reportsApi } from "@/services/api";
-import type { Term } from "@/types/api";
+import type {
+  Term,
+  DashboardOverview,
+  TeacherDashboard,
+  StudentDashboard,
+  ParentDashboard,
+  AttendanceSummary,
+  StudentAttendanceReport,
+  ClassAttendanceReport,
+  AttendanceTrends,
+  GradeSummary,
+  StudentGradeReport,
+  ClassGradeReport,
+  FinanceDashboard,
+  FeeCollectionReport,
+  EnrollmentReport,
+  TeacherWorkloadReport,
+} from "@/types/api";
 
 // Query keys
 export const reportsKeys = {
@@ -32,35 +49,39 @@ export const reportsKeys = {
 // DASHBOARD QUERIES
 // ============================================
 
-export const useDashboardOverview = (params?: { schoolId?: string; academicYearId?: string }) => {
-  return useQuery({
+export const useDashboardOverview = (params?: { schoolId?: string; academicYearId?: string }, enabled = true) => {
+  return useQuery<DashboardOverview>({
     queryKey: reportsKeys.dashboardOverview(params || {}),
     queryFn: () => reportsApi.getDashboardOverview(params),
     staleTime: 2 * 60 * 1000,
+    enabled,
   });
 };
 
-export const useTeacherDashboard = (params?: { schoolId?: string; academicYearId?: string }) => {
-  return useQuery({
+export const useTeacherDashboard = (params?: { schoolId?: string; academicYearId?: string }, enabled = true) => {
+  return useQuery<TeacherDashboard>({
     queryKey: reportsKeys.teacherDashboard(params || {}),
     queryFn: () => reportsApi.getTeacherDashboard(params),
     staleTime: 2 * 60 * 1000,
+    enabled,
   });
 };
 
-export const useStudentDashboard = () => {
-  return useQuery({
+export const useStudentDashboard = (enabled = true) => {
+  return useQuery<StudentDashboard>({
     queryKey: reportsKeys.studentDashboard(),
     queryFn: () => reportsApi.getStudentDashboard(),
     staleTime: 2 * 60 * 1000,
+    enabled,
   });
 };
 
-export const useParentDashboard = () => {
-  return useQuery({
+export const useParentDashboard = (enabled = true) => {
+  return useQuery<ParentDashboard>({
     queryKey: reportsKeys.parentDashboard(),
     queryFn: () => reportsApi.getParentDashboard(),
     staleTime: 2 * 60 * 1000,
+    enabled,
   });
 };
 
@@ -72,10 +93,11 @@ export const useAttendanceSummary = (params?: {
   schoolId?: string;
   academicYearId?: string;
   classId?: string;
+  studentId?: string;
   dateFrom?: string;
   dateTo?: string;
 }) => {
-  return useQuery({
+  return useQuery<AttendanceSummary>({
     queryKey: reportsKeys.attendanceSummary(params || {}),
     queryFn: () => reportsApi.getAttendanceSummary(params),
     staleTime: 2 * 60 * 1000,
@@ -87,7 +109,7 @@ export const useStudentAttendanceReport = (
   studentId: string,
   params?: { academicYearId?: string; dateFrom?: string; dateTo?: string }
 ) => {
-  return useQuery({
+  return useQuery<StudentAttendanceReport>({
     queryKey: reportsKeys.studentAttendance(studentId, params || {}),
     queryFn: () => reportsApi.getStudentAttendanceReport(studentId, params),
     enabled: !!studentId,
@@ -99,7 +121,7 @@ export const useClassAttendanceReport = (
   classId: string,
   params?: { dateFrom?: string; dateTo?: string; subjectId?: string }
 ) => {
-  return useQuery({
+  return useQuery<ClassAttendanceReport>({
     queryKey: reportsKeys.classAttendance(classId, params || {}),
     queryFn: () => reportsApi.getClassAttendanceReport(classId, params),
     enabled: !!classId,
@@ -111,15 +133,16 @@ export const useAttendanceTrends = (params?: {
   schoolId?: string;
   academicYearId?: string;
   classId?: string;
+  studentId?: string;
   dateFrom?: string;
   dateTo?: string;
   groupBy?: "day" | "week" | "month";
 }) => {
-  return useQuery({
+  return useQuery<AttendanceTrends>({
     queryKey: reportsKeys.attendanceTrends(params || {}),
     queryFn: () => reportsApi.getAttendanceTrends(params),
     staleTime: 5 * 60 * 1000,
-    enabled: !!(params?.schoolId || params?.academicYearId || params?.classId),
+    enabled: !!(params?.schoolId || params?.academicYearId || params?.classId || params?.studentId),
   });
 };
 
@@ -134,7 +157,7 @@ export const useGradeSummary = (params?: {
   subjectId?: string;
   term?: Term;
 }) => {
-  return useQuery({
+  return useQuery<GradeSummary>({
     queryKey: reportsKeys.gradeSummary(params || {}),
     queryFn: () => reportsApi.getGradeSummary(params),
     staleTime: 2 * 60 * 1000,
@@ -146,7 +169,7 @@ export const useStudentGradeReport = (
   studentId: string,
   params?: { academicYearId?: string; classSubjectId?: string; term?: Term }
 ) => {
-  return useQuery({
+  return useQuery<StudentGradeReport>({
     queryKey: reportsKeys.studentGrades(studentId, params || {}),
     queryFn: () => reportsApi.getStudentGradeReport(studentId, params),
     enabled: !!studentId,
@@ -158,7 +181,7 @@ export const useClassGradeReport = (
   classId: string,
   params?: { subjectId?: string; academicYearId?: string; term?: Term }
 ) => {
-  return useQuery({
+  return useQuery<ClassGradeReport>({
     queryKey: reportsKeys.classGrades(classId, params || {}),
     queryFn: () => reportsApi.getClassGradeReport(classId, params),
     enabled: !!classId,
@@ -176,7 +199,7 @@ export const useFinanceDashboard = (params?: {
   dateFrom?: string;
   dateTo?: string;
 }) => {
-  return useQuery({
+  return useQuery<FinanceDashboard>({
     queryKey: reportsKeys.financeDashboard(params || {}),
     queryFn: () => reportsApi.getFinanceDashboard(params),
     staleTime: 2 * 60 * 1000,
@@ -190,7 +213,7 @@ export const useFeeCollectionReport = (params?: {
   dateFrom?: string;
   dateTo?: string;
 }) => {
-  return useQuery({
+  return useQuery<FeeCollectionReport>({
     queryKey: reportsKeys.feeCollection(params || {}),
     queryFn: () => reportsApi.getFeeCollectionReport(params),
     staleTime: 2 * 60 * 1000,
@@ -206,7 +229,7 @@ export const useEnrollmentReport = (params?: {
   academicYearId?: string;
   gradeLevelId?: string;
 }) => {
-  return useQuery({
+  return useQuery<EnrollmentReport>({
     queryKey: reportsKeys.enrollmentReport(params || {}),
     queryFn: () => reportsApi.getEnrollmentReport(params),
     staleTime: 5 * 60 * 1000,
@@ -214,7 +237,7 @@ export const useEnrollmentReport = (params?: {
 };
 
 export const useTeacherWorkloadReport = (params?: { schoolId?: string; academicYearId?: string }) => {
-  return useQuery({
+  return useQuery<TeacherWorkloadReport>({
     queryKey: reportsKeys.teacherWorkload(params || {}),
     queryFn: () => reportsApi.getTeacherWorkloadReport(params),
     staleTime: 5 * 60 * 1000,

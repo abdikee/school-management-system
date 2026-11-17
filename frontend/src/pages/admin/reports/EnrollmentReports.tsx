@@ -48,10 +48,25 @@ export function AdminEnrollmentReports() {
     });
   };
 
-  const enrollmentData = enrollment || {};
+  const enrollmentData = enrollment || { totalStudents: 0, newEnrollmentsThisYear: 0, withdrawnStudents: 0, byClass: [], byGradeLevel: [], byGender: [] };
   const byClass = enrollmentData.byClass || [];
   const byGradeLevel = enrollmentData.byGradeLevel || [];
   const byGender = enrollmentData.byGender || [];
+
+  // Map data for charts
+  const enrollmentChartData = byClass.map((cls) => ({
+    class: cls.class?.name || "Unknown",
+    count: cls.count,
+    capacity: cls.capacity,
+    utilization: cls.utilization,
+  }));
+
+  const workloadChartData = workload?.teachers?.map((t) => ({
+    teacher: `${t.teacher?.user?.firstName || ""} ${t.teacher?.user?.lastName || ""}`.trim() || "Unknown",
+    weeklyHours: t.studentsCount, // Using studentsCount as proxy since weeklyHours doesn't exist
+    subjectCount: t.subjectsCount,
+    classCount: t.classesCount,
+  })) || [];
 
   return (
     <div className="space-y-6">
@@ -201,9 +216,9 @@ export function AdminEnrollmentReports() {
               <CardContent>
                 {enrollmentLoading ? (
                   <div className="h-[350px] flex items-center justify-center text-muted-foreground">Loading...</div>
-                ) : byClass.length > 0 ? (
+                ) : enrollmentChartData.length > 0 ? (
                   <EnrollmentChart
-                    data={byClass}
+                    data={enrollmentChartData}
                     height={350}
                   />
                 ) : (
@@ -331,16 +346,16 @@ export function AdminEnrollmentReports() {
                   </Card>
                   <Card>
                     <CardContent className="pt-6">
-                      <p className="text-sm text-muted-foreground">Avg Weekly Hours</p>
+                      <p className="text-sm text-muted-foreground">Avg Students per Teacher</p>
                       <p className="text-3xl font-bold">
-                        {(workload.teachers?.reduce((acc: number, t: any) => acc + t.weeklyHours, 0) / (workload.teachers?.length || 1)).toFixed(1)}
+                        {(workload.teachers?.reduce((acc: number, t: any) => acc + t.studentsCount, 0) / (workload.teachers?.length || 1)).toFixed(1)}
                       </p>
                     </CardContent>
                   </Card>
                 </div>
 
                 <TeacherWorkloadChart
-                  data={workload.teachers || []}
+                  data={workloadChartData}
                   height={350}
                 />
 
@@ -349,11 +364,9 @@ export function AdminEnrollmentReports() {
                     <thead>
                       <tr className="border-b border-border">
                         <th className="text-left p-3 font-medium">Teacher</th>
-                        <th className="text-center p-3 font-medium">Weekly Hours</th>
+                        <th className="text-center p-3 font-medium">Students</th>
                         <th className="text-center p-3 font-medium">Subjects</th>
                         <th className="text-center p-3 font-medium">Classes</th>
-                        <th className="text-left p-3 font-medium">Subjects List</th>
-                        <th className="text-left p-3 font-medium">Classes List</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -363,23 +376,9 @@ export function AdminEnrollmentReports() {
                             <div className="font-medium">{teacher.teacher?.user?.firstName} {teacher.teacher?.user?.lastName}</div>
                             <div className="text-sm text-muted-foreground">{teacher.teacher?.employeeId}</div>
                           </td>
-                          <td className="text-center p-3">{teacher.weeklyHours}</td>
-                          <td className="text-center p-3">{teacher.subjectCount}</td>
-                          <td className="text-center p-3">{teacher.classCount}</td>
-                          <td className="p-3">
-                            <div className="flex flex-wrap gap-1">
-                              {teacher.subjects?.map((s: string) => (
-                                <span key={s} className="px-2 py-0.5 text-xs bg-primary/10 text-primary rounded">{s}</span>
-                              ))}
-                            </div>
-                          </td>
-                          <td className="p-3">
-                            <div className="flex flex-wrap gap-1">
-                              {teacher.classes?.map((c: string) => (
-                                <span key={c} className="px-2 py-0.5 text-xs bg-green-100 text-green-800 rounded">{c}</span>
-                              ))}
-                            </div>
-                          </td>
+                          <td className="text-center p-3">{teacher.studentsCount}</td>
+                          <td className="text-center p-3">{teacher.subjectsCount}</td>
+                          <td className="text-center p-3">{teacher.classesCount}</td>
                         </tr>
                       ))}
                     </tbody>

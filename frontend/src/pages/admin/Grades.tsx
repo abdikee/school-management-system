@@ -76,7 +76,7 @@ const gradesTabs = [
 type GradesTab = (typeof gradesTabs)[number]["id"];
 
 export function AdminGrades() {
-  const [activeTab, setActiveTab] = useState<GradesTab>("assessments");
+  const [activeTab, setActiveTab] = useState<string>("assessments");
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
@@ -111,7 +111,7 @@ export function AdminGrades() {
   // ============================================
   const { data: subjectsData, isLoading: subjectsLoading } = useQuery({
     queryKey: ["subjects-for-class", selectedClassId],
-    queryFn: () => academicApi.getSubjectsByClass(selectedClassId),
+    queryFn: () => academicApi.getClassSubjects(selectedClassId),
     enabled: !!selectedClassId,
   });
 
@@ -131,8 +131,7 @@ export function AdminGrades() {
     queryFn: () => gradesApi.getAssessments({
       skip: (page - 1) * pageSize,
       take: pageSize,
-      classId: selectedClassId || undefined,
-      subjectId: selectedSubjectId || undefined,
+      classSubjectId: selectedSubjectId || undefined,
       typeId: selectedAssessmentTypeId || undefined,
     }),
     enabled: !!selectedClassId,
@@ -194,7 +193,7 @@ export function AdminGrades() {
 
   const saveGradesMutation = useMutation({
     mutationFn: (records: Array<{ studentId: string; score: number; feedback?: string }>) =>
-      gradesApi.bulkCreateGrades({ assessmentId: selectedItem?.id!, records }),
+      gradesApi.bulkCreateGrades(records.map(r => ({ ...r, assessmentId: selectedItem?.id! }))),
     onSuccess: () => {
       toast.success("Grades saved");
       if (selectedItem?.id) loadStudentsAndGrades(selectedItem.id);
@@ -363,7 +362,7 @@ export function AdminGrades() {
                       <TableRow key={assessment.id}>
                         <TableCell className="font-medium">{assessment.name}</TableCell>
                         <TableCell>{assessment.type?.name || "—"}</TableCell>
-                        <TableCell>{assessment.subject?.name || "—"}</TableCell>
+                        <TableCell>{subjectsData?.find((s: Subject) => s.id === assessment.subjectId)?.name || assessment.subjectId || "—"}</TableCell>
                         <TableCell>{formatDate(assessment.date)}</TableCell>
                         <TableCell>{assessment.maxScore}</TableCell>
                         <TableCell>{assessment.weight || assessment.type?.weight || 0}%</TableCell>
@@ -467,7 +466,7 @@ export function AdminGrades() {
               </Select>
             </div>
             <div className="flex items-end">
-              <Button onClick={loadStudentsAndGrades} disabled={!selectedItem?.id || isLoadingStudents}>
+              <Button onClick={() => selectedItem?.id && loadStudentsAndGrades(selectedItem.id)} disabled={!selectedItem?.id || isLoadingStudents}>
                 {isLoadingStudents ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : "Load Students"}
               </Button>
             </div>

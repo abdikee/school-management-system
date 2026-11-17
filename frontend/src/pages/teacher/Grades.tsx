@@ -87,6 +87,8 @@ export function TeacherGrades() {
   const [students, setStudents] = useState<Student[]>([]);
   const [grades, setGrades] = useState<Record<string, { score: number; feedback?: string }>>({});
   const [isLoadingStudents, setIsLoadingStudents] = useState(false);
+  const [selectedItem, setSelectedItem] = useState<Assessment | null>(null);
+  const [createDialogOpen, setCreateDialogOpen] = useState(false);
 
   const queryClient = useQueryClient();
 
@@ -751,7 +753,7 @@ export function TeacherGrades() {
       </div>
 
       {/* Tabs */}
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
+      <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as typeof activeTab)} className="space-y-4">
         <TabsList className="grid w-full grid-cols-3">
           {teacherGradesTabs.map((tab) => (
             <TabsTrigger key={tab.id} value={tab.id} className="flex items-center justify-center gap-2">
@@ -896,7 +898,7 @@ function AssessmentForm({
           <FormItem className="flex items-center">
             <FormControl>
               <label className="flex items-center gap-2">
-                <input type="checkbox" {...field} /> <FormLabel>Publish immediately</FormLabel>
+                <input type="checkbox" checked={field.value} onChange={field.onChange} onBlur={field.onBlur} name={field.name} ref={field.ref} /> <FormLabel>Publish immediately</FormLabel>
               </label>
             </FormControl>
           </FormItem>

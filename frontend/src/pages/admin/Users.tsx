@@ -65,10 +65,11 @@ import {
   ArrowUpDown,
   ChevronDown,
   ChevronUp,
+  KeyRound,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
-import { UserRole, UserStatus, Gender } from "@/types/api";
+import { UserRole, UserStatus, Gender, Student, Teacher, Parent } from "@/types/api";
 
 // User types for the tabs
 const userTypes = [
@@ -87,7 +88,7 @@ const createUserSchema = z.object({
   firstName: z.string().min(1, "First name is required"),
   lastName: z.string().min(1, "Last name is required"),
   phone: z.string().optional(),
-  role: z.enum(["ADMIN", "TEACHER", "STUDENT", "PARENT"]),
+  role: z.enum(["ADMIN", "TEACHER", "STUDENT", "PARENT", "CASHIER"]),
   schoolId: z.string().optional(),
   // Student specific
   studentId: z.string().optional(),
@@ -103,6 +104,22 @@ const createUserSchema = z.object({
   qualification: z.string().optional(),
   // Parent specific
   occupation: z.string().optional(),
+  childStudentId: z.string().optional(),
+  relationship: z.string().optional(),
+}).superRefine((data, context) => {
+  if (data.role === "STUDENT") {
+    if (!data.studentId) context.addIssue({ code: z.ZodIssueCode.custom, path: ["studentId"], message: "Student ID is required" });
+    if (!data.dateOfBirth) context.addIssue({ code: z.ZodIssueCode.custom, path: ["dateOfBirth"], message: "Date of birth is required" });
+    if (!data.gender) context.addIssue({ code: z.ZodIssueCode.custom, path: ["gender"], message: "Gender is required" });
+  }
+  if (data.role === "TEACHER") {
+    if (!data.employeeId) context.addIssue({ code: z.ZodIssueCode.custom, path: ["employeeId"], message: "Employee ID is required" });
+    if (!data.hireDate) context.addIssue({ code: z.ZodIssueCode.custom, path: ["hireDate"], message: "Hire date is required" });
+  }
+  if (data.role === "PARENT") {
+    if (!data.childStudentId) context.addIssue({ code: z.ZodIssueCode.custom, path: ["childStudentId"], message: "Select the parent’s child" });
+    if (!data.relationship) context.addIssue({ code: z.ZodIssueCode.custom, path: ["relationship"], message: "Relationship is required" });
+  }
 });
 
 type CreateUserFormData = z.infer<typeof createUserSchema>;
@@ -141,7 +158,7 @@ interface UserRow {
 }
 
 export function AdminUsers() {
-  const [activeTab, setActiveTab] = useState<UserType>("all");
+  const [activeTab, setActiveTab] = useState<string>("all");
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<UserStatus | "">("");
   const [page, setPage] = useState(1);
@@ -153,6 +170,9 @@ export function AdminUsers() {
   const [selectedUser, setSelectedUser] = useState<UserRow | null>(null);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [userToDelete, setUserToDelete] = useState<string | null>(null);
+  const [resetPasswordOpen, setResetPasswordOpen] = useState(false);
+  const [resetPasswordUser, setResetPasswordUser] = useState<UserRow | null>(null);
+  const [newPassword, setNewPassword] = useState("");
 
   const queryClient = useQueryClient();
 
@@ -184,11 +204,11 @@ export function AdminUsers() {
   });
 
   // Create user mutation
-  const createUserMutation = useMutation({
-    mutationFn: (data: CreateUserFormData) => {
+  const createUserMutation = useMutation<any, Error, CreateUserFormData>({
+    mutationFn: async (data: CreateUserFormData) => {
       switch (data.role) {
         case "STUDENT":
-          return usersApi.createStudent({
+          return await usersApi.createStudent({
             email: data.email,
             password: data.password,
             firstName: data.firstName,
@@ -204,7 +224,7 @@ export function AdminUsers() {
             schoolId: data.schoolId,
           });
         case "TEACHER":
-          return usersApi.createTeacher({
+          return await usersApi.createTeacher({
             email: data.email,
             password: data.password,
             firstName: data.firstName,
@@ -216,7 +236,7 @@ export function AdminUsers() {
             schoolId: data.schoolId,
           });
         case "PARENT":
-          return usersApi.createParent({
+          return await usersApi.createParent({
             email: data.email,
             password: data.password,
             firstName: data.firstName,
@@ -225,9 +245,21 @@ export function AdminUsers() {
             occupation: data.occupation,
             address: data.address,
             schoolId: data.schoolId,
+            studentId: data.childStudentId!,
+            relationship: data.relationship!,
+            isPrimary: true,
+          });
+        case "CASHIER":
+          return await usersApi.createCashier({
+            email: data.email,
+            password: data.password,
+            firstName: data.firstName,
+            lastName: data.lastName,
+            phone: data.phone,
+            schoolId: data.schoolId,
           });
         default:
-          return usersApi.createUser(data as any);
+          throw new Error(`Unsupported role: ${data.role}`);
       }
     },
     onSuccess: () => {
@@ -241,9 +273,22 @@ export function AdminUsers() {
   });
 
   // Update user mutation
-  const updateUserMutation = useMutation({
-    mutationFn: ({ id, data }: { id: string; data: UpdateUserFormData }) =>
-      usersApi.updateUser(id, data),
+  const updateUserMutation = useMutation<any, Error, { id: string; data: UpdateUserFormData; role: UserRole }>({
+    mutationFn: async ({ id, data, role }: { id: string; data: UpdateUserFormData; role: UserRole }) => {
+      // Use the appropriate update method based on role
+      // Remove status from data since updateStudent/updateTeacher/updateParent don't accept it
+      const { status, ...updateData } = data;
+      switch (role) {
+        case "STUDENT":
+          return await usersApi.updateStudent(id, updateData as Partial<Student>);
+        case "TEACHER":
+          return await usersApi.updateTeacher(id, updateData as Partial<Teacher>);
+        case "PARENT":
+          return await usersApi.updateParent(id, updateData as Partial<Parent>);
+        default:
+          return await usersApi.updateProfile(updateData); // For admin or fallback
+      }
+    },
     onSuccess: () => {
       toast.success("User updated successfully");
       queryClient.invalidateQueries({ queryKey: ["admin-users"] });
@@ -278,6 +323,20 @@ export function AdminUsers() {
     },
     onError: (error: any) => {
       toast.error(error.response?.data?.message || "Failed to delete user");
+    },
+  });
+
+  const resetPasswordMutation = useMutation({
+    mutationFn: ({ id, password }: { id: string; password: string }) =>
+      usersApi.resetPassword(id, password),
+    onSuccess: () => {
+      toast.success("Password reset successfully");
+      setResetPasswordOpen(false);
+      setResetPasswordUser(null);
+      setNewPassword("");
+    },
+    onError: (error: any) => {
+      toast.error(error.response?.data?.message || "Failed to reset password");
     },
   });
 
@@ -416,15 +475,15 @@ export function AdminUsers() {
                 <Label htmlFor="page-size" className="text-sm font-medium">
                   Per page:
                 </Label>
-                <Select value={pageSize} onValueChange={(value) => { setPageSize(Number(value)); setPage(1); }}>
+                <Select value={String(pageSize)} onValueChange={(value) => { setPageSize(Number(value)); setPage(1); }}>
                   <SelectTrigger id="page-size" className="w-[100px]">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value={10}>10</SelectItem>
-                    <SelectItem value={25}>25</SelectItem>
-                    <SelectItem value={50}>50</SelectItem>
-                    <SelectItem value={100}>100</SelectItem>
+                    <SelectItem value="10">10</SelectItem>
+                    <SelectItem value="25">25</SelectItem>
+                    <SelectItem value="50">50</SelectItem>
+                    <SelectItem value="100">100</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -611,6 +670,17 @@ export function AdminUsers() {
                                 >
                                   <Trash2 className="h-4 w-4 text-red-600" />
                                 </Button>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  onClick={() => {
+                                    setResetPasswordUser(user);
+                                    setResetPasswordOpen(true);
+                                  }}
+                                  aria-label="Reset password"
+                                >
+                                  <KeyRound className="h-4 w-4 text-emerald-700" />
+                                </Button>
                               </div>
                             </TableCell>
                           </TableRow>
@@ -681,7 +751,7 @@ export function AdminUsers() {
           {selectedUser && (
             <EditUserForm
               user={selectedUser}
-              onSubmit={(data) => updateUserMutation.mutate({ id: selectedUser.id, data })}
+              onSubmit={(data) => updateUserMutation.mutate({ id: selectedUser.id, data, role: selectedUser.role })}
               isLoading={updateUserMutation.isPending}
               onClose={() => setEditDialogOpen(false)}
             />
@@ -708,6 +778,38 @@ export function AdminUsers() {
               disabled={deleteUserMutation.isPending}
             >
               {deleteUserMutation.isPending ? "Deleting..." : "Delete"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={resetPasswordOpen} onOpenChange={setResetPasswordOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Reset user password</DialogTitle>
+            <DialogDescription>
+              Set a new password for {resetPasswordUser?.firstName} {resetPasswordUser?.lastName}. Active sessions will be revoked.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2">
+            <Label htmlFor="admin-reset-password">New password</Label>
+            <Input
+              id="admin-reset-password"
+              type="password"
+              minLength={8}
+              value={newPassword}
+              onChange={(event) => setNewPassword(event.target.value)}
+              placeholder="At least 8 characters"
+            />
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setResetPasswordOpen(false)}>Cancel</Button>
+            <Button
+              className="bg-emerald-600 hover:bg-emerald-700"
+              disabled={!resetPasswordUser || newPassword.length < 8 || resetPasswordMutation.isPending}
+              onClick={() => resetPasswordUser && resetPasswordMutation.mutate({ id: resetPasswordUser.id, password: newPassword })}
+            >
+              {resetPasswordMutation.isPending ? "Resetting..." : "Reset password"}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -740,7 +842,19 @@ function CreateUserForm({ onSubmit, isLoading, onClose }: { onSubmit: (data: Cre
       hireDate: "",
       qualification: "",
       occupation: "",
+      childStudentId: "",
+      relationship: "",
     },
+  });
+  const { data: studentsData, isLoading: studentsLoading } = useQuery({
+    queryKey: ["admin-user-form-students"],
+    queryFn: () => usersApi.getStudents({ skip: 0, take: 100 }),
+    enabled: role === "PARENT",
+  });
+  const { data: parentsData, isLoading: parentsLoading } = useQuery({
+    queryKey: ["admin-user-form-parents"],
+    queryFn: () => usersApi.getParents({ skip: 0, take: 100 }),
+    enabled: role === "STUDENT",
   });
 
   const handleSubmit = form.handleSubmit((data) => {
@@ -802,12 +916,25 @@ function CreateUserForm({ onSubmit, isLoading, onClose }: { onSubmit: (data: Cre
             />
             <FormField
               control={form.control}
+              name="address"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Home address</FormLabel>
+                  <FormControl>
+                    <Input placeholder="Student home address" {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
               name="classId"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Class</FormLabel>
+                  <FormLabel>Class ID</FormLabel>
                   <FormControl>
-                    <Input placeholder="Class ID" {...field} />
+                    <Input placeholder="Class ID (optional)" {...field} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -818,9 +945,9 @@ function CreateUserForm({ onSubmit, isLoading, onClose }: { onSubmit: (data: Cre
               name="gradeLevelId"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Grade Level</FormLabel>
+                  <FormLabel>Grade level ID</FormLabel>
                   <FormControl>
-                    <Input placeholder="Grade Level ID" {...field} />
+                    <Input placeholder="Grade level ID (optional)" {...field} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -831,10 +958,21 @@ function CreateUserForm({ onSubmit, isLoading, onClose }: { onSubmit: (data: Cre
               name="parentId"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Parent ID (Optional)</FormLabel>
-                  <FormControl>
-                    <Input placeholder="Parent ID" {...field} />
-                  </FormControl>
+                  <FormLabel>Parent (Optional)</FormLabel>
+                  <Select onValueChange={field.onChange} value={field.value}>
+                    <FormControl>
+                      <SelectTrigger>
+                        <SelectValue placeholder={parentsLoading ? "Loading parents..." : "Select a parent"} />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      {parentsData?.data?.map((parent: any) => (
+                        <SelectItem key={parent.id} value={parent.id}>
+                          {parent.user?.firstName || parent.firstName} {parent.user?.lastName || parent.lastName}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                   <FormMessage />
                 </FormItem>
               )}
@@ -910,6 +1048,51 @@ function CreateUserForm({ onSubmit, isLoading, onClose }: { onSubmit: (data: Cre
                   <FormControl>
                     <Input placeholder="Home address" {...field} />
                   </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="childStudentId"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Child *</FormLabel>
+                  <Select onValueChange={field.onChange} value={field.value}>
+                    <FormControl>
+                      <SelectTrigger>
+                        <SelectValue placeholder={studentsLoading ? "Loading students..." : "Select the child this parent can access"} />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      {studentsData?.data?.map((student: any) => (
+                        <SelectItem key={student.id} value={student.id}>
+                          {student.user?.firstName} {student.user?.lastName} ({student.studentId})
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="relationship"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Relationship *</FormLabel>
+                  <Select onValueChange={field.onChange} value={field.value}>
+                    <FormControl>
+                      <SelectTrigger><SelectValue placeholder="Select relationship" /></SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      <SelectItem value="Father">Father</SelectItem>
+                      <SelectItem value="Mother">Mother</SelectItem>
+                      <SelectItem value="Guardian">Guardian</SelectItem>
+                      <SelectItem value="Other">Other</SelectItem>
+                    </SelectContent>
+                  </Select>
                   <FormMessage />
                 </FormItem>
               )}
@@ -1007,6 +1190,7 @@ function CreateUserForm({ onSubmit, isLoading, onClose }: { onSubmit: (data: Cre
                     <SelectItem value="TEACHER">Teacher</SelectItem>
                     <SelectItem value="STUDENT">Student</SelectItem>
                     <SelectItem value="PARENT">Parent</SelectItem>
+                    <SelectItem value="CASHIER">Cashier</SelectItem>
                   </SelectContent>
                 </Select>
                 <FormMessage />

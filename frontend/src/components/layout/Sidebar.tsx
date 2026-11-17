@@ -1,130 +1,118 @@
-"use client";
-
-import { NavLink, useLocation } from "react-router-dom";
+import { NavLink } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/context/AuthContext";
 import {
-  LayoutDashboard,
-  Users,
-  GraduationCap,
-  BookOpen,
-  Calendar,
-  ClipboardCheck,
-  DollarSign,
-  MessageSquare,
-  Bell,
+  Activity,
   BarChart3,
-  Settings,
-  Menu,
+  BookOpen,
+  CalendarDays,
+  CheckSquare2,
+  CircleDollarSign,
+  GraduationCap,
+  LayoutDashboard,
+  MessageSquare,
+  ReceiptText,
+  Settings2,
+  Users,
   X,
-  ChevronRight,
-  School,
-  Award,
 } from "lucide-react";
-import { Button } from "@/components/ui/button";
 import type { UserRole } from "@/types/api";
 
 interface SidebarProps {
   isOpen: boolean;
+  onClose: () => void;
 }
 
-const navigation = [
-  { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard, roles: ["ADMIN", "TEACHER", "STUDENT", "PARENT"] as UserRole[] },
-  { name: "Users", href: "/users", icon: Users, roles: ["ADMIN"] as UserRole[] },
-  { name: "Academics", href: "/academics", icon: GraduationCap, roles: ["ADMIN", "TEACHER"] as UserRole[] },
-  { name: "Classes", href: "/classes", icon: BookOpen, roles: ["ADMIN", "TEACHER"] as UserRole[] },
-  { name: "Timetable", href: "/timetable", icon: Calendar, roles: ["ADMIN", "TEACHER", "STUDENT", "PARENT"] as UserRole[] },
-  { name: "Attendance", href: "/attendance", icon: ClipboardCheck, roles: ["ADMIN", "TEACHER"] as UserRole[] },
-  { name: "Grades", href: "/grades", icon: Award, roles: ["ADMIN", "TEACHER", "STUDENT", "PARENT"] as UserRole[] },
-  { name: "Finance", href: "/finance", icon: DollarSign, roles: ["ADMIN"] as UserRole[] },
-  { name: "Communication", href: "/communication", icon: MessageSquare, roles: ["ADMIN", "TEACHER", "STUDENT", "PARENT"] as UserRole[] },
-  { name: "Notifications", href: "/notifications", icon: Bell, roles: ["ADMIN", "TEACHER", "STUDENT", "PARENT"] as UserRole[] },
-  { name: "Reports", href: "/reports", icon: BarChart3, roles: ["ADMIN", "TEACHER"] as UserRole[] },
-  { name: "Settings", href: "/settings", icon: Settings, roles: ["ADMIN"] as UserRole[] },
+type NavItem = {
+  label: string;
+  href: string;
+  icon: typeof LayoutDashboard;
+  roles: UserRole[];
+};
+
+const navigation: NavItem[] = [
+  { label: "Overview", href: "/dashboard", icon: LayoutDashboard, roles: ["ADMIN", "TEACHER", "STUDENT", "PARENT"] },
+  { label: "People", href: "/admin/users", icon: Users, roles: ["ADMIN"] },
+  { label: "Permissions", href: "/admin/permissions", icon: Users, roles: ["ADMIN"] },
+  { label: "Academics", href: "/admin/academic", icon: BookOpen, roles: ["ADMIN", "TEACHER"] },
+  { label: "Classes", href: "/teacher/classes", icon: GraduationCap, roles: ["TEACHER"] },
+  { label: "Attendance", href: "/teacher/attendance", icon: CheckSquare2, roles: ["TEACHER"] },
+  { label: "Grades", href: "/teacher/grades", icon: GraduationCap, roles: ["TEACHER"] },
+  { label: "Schedule", href: "/student/schedule", icon: CalendarDays, roles: ["STUDENT"] },
+  { label: "My reports", href: "/student/reports", icon: BarChart3, roles: ["STUDENT"] },
+  { label: "Fees", href: "/student/fees", icon: CircleDollarSign, roles: ["STUDENT"] },
+  { label: "Messages", href: "/student/communication", icon: MessageSquare, roles: ["STUDENT"] },
+  { label: "Children", href: "/parent/children", icon: Users, roles: ["PARENT"] },
+  { label: "Attendance", href: "/parent/attendance", icon: CheckSquare2, roles: ["PARENT"] },
+  { label: "Grades", href: "/parent/grades", icon: GraduationCap, roles: ["PARENT"] },
+  { label: "Fees", href: "/parent/fees", icon: CircleDollarSign, roles: ["PARENT"] },
+  { label: "Messages", href: "/parent/communication", icon: MessageSquare, roles: ["PARENT"] },
+  { label: "Cashier desk", href: "/cashier/dashboard", icon: CircleDollarSign, roles: ["CASHIER"] },
+  { label: "Payments", href: "/cashier/payments", icon: ReceiptText, roles: ["CASHIER"] },
+  { label: "Attendance", href: "/admin/attendance", icon: CheckSquare2, roles: ["ADMIN"] },
+  { label: "Grades", href: "/admin/grades", icon: GraduationCap, roles: ["ADMIN"] },
+  { label: "Finance", href: "/admin/finance", icon: CircleDollarSign, roles: ["ADMIN"] },
+  { label: "Messages", href: "/admin/communication", icon: MessageSquare, roles: ["ADMIN"] },
+  { label: "Reports", href: "/admin/reports", icon: BarChart3, roles: ["ADMIN", "TEACHER"] },
+  { label: "Principal view", href: "/admin/oversight", icon: Activity, roles: ["ADMIN"] },
+  { label: "Settings", href: "/settings", icon: Settings2, roles: ["ADMIN", "TEACHER", "STUDENT", "PARENT", "CASHIER"] },
 ];
 
-export function Sidebar({ isOpen }: SidebarProps) {
-  const location = useLocation();
+export function Sidebar({ isOpen, onClose }: SidebarProps) {
   const { user, hasRole } = useAuth();
-
-  const filteredNavigation = navigation.filter((item) =>
-    item.roles.some((role) => hasRole(role))
-  );
+  const items = navigation.filter((item) => item.roles.some((role) => hasRole(role)));
 
   return (
     <>
-      {/* Mobile close button */}
-      <Button
-        className={cn("fixed top-4 left-4 z-50 lg:hidden", isOpen ? "left-64" : "")}
-        variant="ghost"
-        size="icon"
-        onClick={() => window.history.back()}
-        aria-label="Close sidebar"
-      >
-        {isOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
-      </Button>
-
-      {/* Sidebar */}
-      <aside
-        className={cn(
-          "fixed top-0 left-0 z-40 h-screen w-64 transform bg-card border-r border-border transition-transform duration-300 ease-in-out lg:translate-x-0",
-          isOpen ? "translate-x-0" : "-translate-x-full"
-        )}
-        aria-label="Sidebar navigation"
-      >
-        <div className="flex h-full flex-col">
-          {/* Logo/Brand */}
-          <div className="flex h-16 shrink-0 items-center px-6 border-b border-border">
-            <div className="flex items-center gap-2">
-              <School className="h-8 w-8 text-primary" />
-              <span className="text-xl font-bold text-foreground">SchoolMS</span>
+      {isOpen && <button className="fixed inset-0 z-30 bg-slate-950/40 lg:hidden" onClick={onClose} aria-label="Close menu" />}
+      <aside className={cn(
+        "fixed inset-y-0 left-0 z-40 flex w-72 flex-col bg-[#092f2b] text-white transition-transform duration-300 lg:translate-x-0",
+        isOpen ? "translate-x-0" : "-translate-x-full",
+      )}>
+        <div className="flex h-20 items-center justify-between border-b border-white/10 px-6">
+          <div className="flex items-center gap-3">
+            <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-emerald-400 text-emerald-950 shadow-lg shadow-emerald-950/20">
+              <GraduationCap className="h-6 w-6" />
+            </div>
+            <div>
+              <p className="text-lg font-semibold tracking-tight">Greenfield</p>
+              <p className="text-xs text-emerald-200/70">School management</p>
             </div>
           </div>
+          <button onClick={onClose} className="rounded-lg p-2 text-emerald-200 hover:bg-white/10 lg:hidden" aria-label="Close menu">
+            <X className="h-5 w-5" />
+          </button>
+        </div>
 
-          {/* Navigation */}
-          <nav className="flex-1 space-y-1 p-4 overflow-y-auto" aria-label="Main navigation">
-            {filteredNavigation.map((item) => {
-              const isActive = location.pathname === item.href ||
-                (item.href !== "/dashboard" && location.pathname.startsWith(item.href));
-
-              return (
-                <NavLink
-                  key={item.name}
-                  to={item.href}
-                  className={({ isActive }) =>
-                    cn(
-                      "flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors",
-                      isActive
-                        ? "bg-primary text-primary-foreground"
-                        : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
-                    )
-                  }
-                  aria-current={isActive ? "page" : undefined}
-                >
-                  <item.icon className="h-5 w-5 flex-shrink-0" aria-hidden="true" />
-                  <span>{item.name}</span>
-                  {isActive && <ChevronRight className="ml-auto h-4 w-4" aria-hidden="true" />}
-                </NavLink>
-              );
-            })}
-          </nav>
-
-          {/* User info at bottom */}
-          <div className="border-t border-border p-4">
-            <div className="flex items-center gap-3">
-              <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center">
-                {user?.avatar ? (
-                  <img src={user.avatar} alt="" className="h-10 w-10 rounded-full" />
-                ) : (
-                  <span className="text-primary font-medium">
-                    {user?.firstName?.[0]}{user?.lastName?.[0]}
-                  </span>
+        <nav className="flex-1 space-y-1 overflow-y-auto px-4 py-6" aria-label="Main navigation">
+          <p className="px-3 pb-3 text-[10px] font-semibold uppercase tracking-[0.2em] text-emerald-300/60">Workspace</p>
+          {items.map((item) => {
+            const Icon = item.icon;
+            return (
+              <NavLink
+                key={item.label}
+                to={item.href}
+                onClick={onClose}
+                className={({ isActive }) => cn(
+                  "group flex items-center gap-3 rounded-xl px-3 py-3 text-sm font-medium transition",
+                  isActive ? "bg-emerald-300 text-[#092f2b] shadow-lg shadow-black/10" : "text-emerald-100/70 hover:bg-white/10 hover:text-white",
                 )}
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium truncate">{user?.firstName} {user?.lastName}</p>
-                <p className="text-xs text-muted-foreground capitalize">{user?.role?.toLowerCase()}</p>
-              </div>
+              >
+                <Icon className="h-[18px] w-[18px]" />
+                <span>{item.label}</span>
+              </NavLink>
+            );
+          })}
+        </nav>
+
+        <div className="border-t border-white/10 p-4">
+          <div className="flex items-center gap-3 rounded-2xl bg-white/10 p-3">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-emerald-300 font-semibold text-emerald-950">
+              {user?.firstName?.[0]}{user?.lastName?.[0]}
+            </div>
+            <div className="min-w-0">
+              <p className="truncate text-sm font-semibold">{user?.firstName} {user?.lastName}</p>
+              <p className="truncate text-xs capitalize text-emerald-200/70">{user?.role?.toLowerCase()}</p>
             </div>
           </div>
         </div>

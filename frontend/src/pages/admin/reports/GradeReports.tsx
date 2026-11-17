@@ -64,8 +64,13 @@ export function AdminGradeReports() {
     });
   };
 
-  const summaryData = summary || {};
-  const distribution = summaryData.distribution || {};
+  const summaryData = summary || {
+    totalAssessments: 0,
+    totalGrades: 0,
+    averageScore: 0,
+    passRate: 0,
+    bySubject: []
+  };
 
   return (
     <div className="space-y-6">
@@ -166,7 +171,7 @@ export function AdminGradeReports() {
             <CardTitle className="text-sm font-medium text-muted-foreground">Total Grades</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-3xl font-bold">{summaryData.count || 0}</div>
+            <div className="text-3xl font-bold">{summaryData.totalGrades || 0}</div>
           </CardContent>
         </Card>
         <Card>
@@ -174,7 +179,7 @@ export function AdminGradeReports() {
             <CardTitle className="text-sm font-medium text-muted-foreground">Average Score</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-3xl font-bold text-primary">{summaryData.average?.toFixed(1) || 0}</div>
+            <div className="text-3xl font-bold text-primary">{summaryData.averageScore?.toFixed(1) || 0}</div>
           </CardContent>
         </Card>
         <Card>
@@ -182,29 +187,24 @@ export function AdminGradeReports() {
             <CardTitle className="text-sm font-medium text-muted-foreground">Subjects</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-3xl font-bold">{Object.keys(summaryData.bySubject || {}).length}</div>
+            <div className="text-3xl font-bold">{summaryData.bySubject?.length || 0}</div>
           </CardContent>
         </Card>
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Assessment Types</CardTitle>
+            <CardTitle className="text-sm font-medium text-muted-foreground">Total Assessments</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-3xl font-bold">{Object.keys(summaryData.byAssessmentType || {}).length}</div>
+            <div className="text-3xl font-bold">{summaryData.totalAssessments || 0}</div>
           </CardContent>
         </Card>
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Pass Rate (60+)</CardTitle>
+            <CardTitle className="text-sm font-medium text-muted-foreground">Pass Rate</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="text-3xl font-bold text-green-600">
-              {(() => {
-                const dist = distribution;
-                const total = Object.values(dist).reduce((a, b) => a + b, 0);
-                const pass = (dist["60-69"] || 0) + (dist["70-79"] || 0) + (dist["80-89"] || 0) + (dist["90-100"] || 0);
-                return total > 0 ? ((pass / total) * 100).toFixed(1) : 0;
-              })()}%
+              {(summaryData.passRate || 0).toFixed(1)}%
             </div>
           </CardContent>
         </Card>
@@ -212,7 +212,7 @@ export function AdminGradeReports() {
 
       {/* Charts */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-7">
-        {/* Grade Distribution */}
+        {/* Grade Distribution - not available in current API */}
         <Card className="col-span-4 lg:col-span-4">
           <CardHeader>
             <CardTitle>Grade Distribution</CardTitle>
@@ -221,10 +221,9 @@ export function AdminGradeReports() {
             {summaryLoading ? (
               <div className="h-[300px] flex items-center justify-center text-muted-foreground">Loading...</div>
             ) : (
-              <GradeDistributionChart
-                data={distribution}
-                height={300}
-              />
+              <div className="h-[300px] flex items-center justify-center text-muted-foreground">
+                Grade distribution data not available in current API
+              </div>
             )}
           </CardContent>
         </Card>
@@ -237,16 +236,16 @@ export function AdminGradeReports() {
           <CardContent>
             {summaryLoading ? (
               <div className="h-[300px] flex items-center justify-center text-muted-foreground">Loading...</div>
-            ) : summaryData.bySubject ? (
+            ) : summaryData.bySubject && summaryData.bySubject.length > 0 ? (
               <div className="space-y-3 max-h-[300px] overflow-y-auto">
-                {Object.entries(summaryData.bySubject).map(([subject, data]: [string, any]) => (
-                  <div key={subject} className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
+                {summaryData.bySubject.map((item: any) => (
+                  <div key={item.subject?.id || item.subject?.name} className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
                     <div>
-                      <p className="font-medium">{subject}</p>
-                      <p className="text-sm text-muted-foreground">{data.count} grades</p>
+                      <p className="font-medium">{item.subject?.name || "Unknown"}</p>
+                      <p className="text-sm text-muted-foreground">{item.count} grades</p>
                     </div>
                     <div className="text-right">
-                      <p className="text-2xl font-bold text-primary">{data.average?.toFixed(1) || 0}</p>
+                      <p className="text-2xl font-bold text-primary">{item.average?.toFixed(1) || 0}</p>
                       <p className="text-xs text-muted-foreground">Average</p>
                     </div>
                   </div>
@@ -259,7 +258,7 @@ export function AdminGradeReports() {
         </Card>
       </div>
 
-      {/* Assessment Type Averages */}
+      {/* Assessment Type Averages - not available in current API */}
       <Card>
         <CardHeader>
           <CardTitle>Average by Assessment Type</CardTitle>
@@ -267,18 +266,8 @@ export function AdminGradeReports() {
         <CardContent>
           {summaryLoading ? (
             <div className="h-[200px] flex items-center justify-center text-muted-foreground">Loading...</div>
-          ) : summaryData.byAssessmentType ? (
-            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-              {Object.entries(summaryData.byAssessmentType).map(([type, data]: [string, any]) => (
-                <div key={type} className="p-4 bg-muted/50 rounded-lg">
-                  <p className="text-sm text-muted-foreground">{type}</p>
-                  <p className="text-2xl font-bold text-primary">{data.average?.toFixed(1) || 0}</p>
-                  <p className="text-xs text-muted-foreground">{data.count} assessments</p>
-                </div>
-              ))}
-            </div>
           ) : (
-            <p className="text-center py-8 text-muted-foreground">No assessment type data available</p>
+            <p className="text-center py-8 text-muted-foreground">Assessment type data not available in current API</p>
           )}
         </CardContent>
       </Card>
@@ -322,39 +311,22 @@ export function AdminGradeReports() {
                 </div>
 
                 <div className="space-y-4">
-                  <h4 className="font-medium">Assessment Performance</h4>
+                  <h4 className="font-medium">Subject Averages</h4>
                   <div className="overflow-x-auto">
                     <table className="w-full">
                       <thead>
                         <tr className="border-b border-border">
-                          <th className="text-left p-3 font-medium">Assessment</th>
-                          <th className="text-left p-3 font-medium">Type</th>
-                          <th className="text-center p-3 font-medium">Max Score</th>
-                          <th className="text-center p-3 font-medium">Class Avg</th>
-                          <th className="text-center p-3 font-medium">Students</th>
-                          <th className="text-center p-3 font-medium">Distribution</th>
+                          <th className="text-left p-3 font-medium">Subject</th>
+                          <th className="text-center p-3 font-medium">Average Score</th>
                         </tr>
                       </thead>
                       <tbody>
-                        {classReport.assessmentReports?.map((assessment: any) => (
-                          <tr key={assessment.assessment?.id} className="border-b border-border/50">
+                        {classReport.subjectAverages?.map((item: any) => (
+                          <tr key={item.subject?.id} className="border-b border-border/50">
                             <td className="p-3">
-                              <div className="font-medium">{assessment.assessment?.name}</div>
-                              <div className="text-sm text-muted-foreground">{assessment.assessment?.type}</div>
+                              <div className="font-medium">{item.subject?.name || "Unknown"}</div>
                             </td>
-                            <td className="p-3">{assessment.assessment?.type}</td>
-                            <td className="text-center p-3">{assessment.assessment?.maxScore}</td>
-                            <td className="text-center p-3 font-medium text-primary">{assessment.classAverage?.toFixed(1) || 0}</td>
-                            <td className="text-center p-3">{assessment.studentCount}</td>
-                            <td className="text-center p-3">
-                              <div className="flex justify-center gap-1">
-                                <span className="text-xs text-green-600">90-100: {assessment.distribution?.["90-100"] || 0}</span>
-                                <span className="text-xs text-blue-600">80-89: {assessment.distribution?.["80-89"] || 0}</span>
-                                <span className="text-xs text-yellow-600">70-79: {assessment.distribution?.["70-79"] || 0}</span>
-                                <span className="text-xs text-orange-600">60-69: {assessment.distribution?.["60-69"] || 0}</span>
-                                <span className="text-xs text-red-600">Below 60: {assessment.distribution?.["Below 60"] || 0}</span>
-                              </div>
-                            </td>
+                            <td className="text-center p-3 font-medium text-primary">{item.average?.toFixed(1) || 0}</td>
                           </tr>
                         ))}
                       </tbody>

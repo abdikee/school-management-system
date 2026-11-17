@@ -18,6 +18,8 @@ import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
+import { Permissions } from '../../common/decorators/permissions.decorator';
+import { StudentAccessService } from '../../common/policies/student-access.service';
 import { UserRole, FeeFrequency, InvoiceStatus, PaymentMethod, Term } from '@prisma/client';
 import { Prisma } from '@prisma/client';
 
@@ -26,7 +28,10 @@ import { Prisma } from '@prisma/client';
 @UseGuards(JwtAuthGuard, RolesGuard)
 @ApiBearerAuth()
 export class FinanceController {
-  constructor(private financeService: FinanceService) {}
+  constructor(
+    private financeService: FinanceService,
+    private studentAccess: StudentAccessService,
+  ) {}
 
   // ============================================
   // FEE STRUCTURE OPERATIONS
@@ -34,6 +39,7 @@ export class FinanceController {
 
   @Post('fee-structures')
   @Roles(UserRole.ADMIN)
+  @Permissions('finance.manage')
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({ summary: 'Create fee structure' })
   async createFeeStructure(@Body() data: {
@@ -52,7 +58,7 @@ export class FinanceController {
   }
 
   @Get('fee-structures')
-  @Roles(UserRole.ADMIN, UserRole.TEACHER, UserRole.PARENT)
+  @Roles(UserRole.ADMIN, UserRole.TEACHER, UserRole.PARENT, UserRole.CASHIER)
   @ApiOperation({ summary: 'Get all fee structures with filters' })
   @ApiQuery({ name: 'skip', required: false, type: Number })
   @ApiQuery({ name: 'take', required: false, type: Number })
@@ -79,7 +85,7 @@ export class FinanceController {
   }
 
   @Get('fee-structures/:id')
-  @Roles(UserRole.ADMIN, UserRole.TEACHER, UserRole.PARENT)
+  @Roles(UserRole.ADMIN, UserRole.TEACHER, UserRole.PARENT, UserRole.CASHIER)
   @ApiOperation({ summary: 'Get fee structure by ID' })
   async getFeeStructureById(@Param('id') id: string) {
     return this.financeService.getFeeStructureById(id);
@@ -87,6 +93,7 @@ export class FinanceController {
 
   @Put('fee-structures/:id')
   @Roles(UserRole.ADMIN)
+  @Permissions('finance.manage')
   @ApiOperation({ summary: 'Update fee structure' })
   async updateFeeStructure(
     @Param('id') id: string,
@@ -97,6 +104,7 @@ export class FinanceController {
 
   @Delete('fee-structures/:id')
   @Roles(UserRole.ADMIN)
+  @Permissions('finance.manage')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Delete fee structure' })
   async deleteFeeStructure(@Param('id') id: string) {
@@ -109,6 +117,7 @@ export class FinanceController {
 
   @Post('invoices')
   @Roles(UserRole.ADMIN)
+  @Permissions('finance.manage')
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({ summary: 'Create invoice' })
   async createInvoice(@Body() data: {
@@ -130,6 +139,7 @@ export class FinanceController {
 
   @Post('invoices/bulk')
   @Roles(UserRole.ADMIN)
+  @Permissions('finance.manage')
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({ summary: 'Bulk generate invoices for multiple students' })
   async bulkGenerateInvoices(@Body() data: {
@@ -142,6 +152,21 @@ export class FinanceController {
       ...data,
       dueDate: new Date(data.dueDate),
     });
+  }
+
+  @Post('invoices/generate')
+  @Roles(UserRole.ADMIN)
+  @Permissions('finance.manage')
+  @HttpCode(HttpStatus.CREATED)
+  @ApiOperation({ summary: 'Generate invoices for a class or selected students' })
+  async generateInvoices(@Body() data: {
+    feeStructureId: string;
+    classId?: string;
+    studentIds?: string[];
+    academicYearId?: string;
+    dueDate?: string;
+  }) {
+    return this.financeService.generateInvoices(data);
   }
 
   @Get('invoices')
@@ -191,12 +216,18 @@ export class FinanceController {
   @Get('invoices/:id')
   @Roles(UserRole.ADMIN, UserRole.TEACHER, UserRole.PARENT, UserRole.STUDENT)
   @ApiOperation({ summary: 'Get invoice by ID with payments' })
-  async getInvoiceById(@Param('id') id: string) {
+  async getInvoiceById(
+    @Param('id') id: string,
+    @CurrentUser('id') userId: string,
+    @CurrentUser('role') role: UserRole,
+  ) {
+    await this.studentAccess.assertCanAccessInvoice(userId, role, id);
     return this.financeService.getInvoiceById(id);
   }
 
   @Put('invoices/:id')
   @Roles(UserRole.ADMIN)
+  @Permissions('finance.manage')
   @ApiOperation({ summary: 'Update invoice' })
   async updateInvoice(
     @Param('id') id: string,
@@ -207,6 +238,7 @@ export class FinanceController {
 
   @Delete('invoices/:id')
   @Roles(UserRole.ADMIN)
+  @Permissions('finance.manage')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Delete invoice (only if no payments)' })
   async deleteInvoice(@Param('id') id: string) {
@@ -218,7 +250,8 @@ export class FinanceController {
   // ============================================
 
   @Post('payments')
-  @Roles(UserRole.ADMIN, UserRole.TEACHER)
+  @Roles(UserRole.ADMIN, UserRole.TEACHER, UserRole.CASHIER)
+  @Permissions('finance.payment.record')
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({ summary: 'Record payment' })
   async recordPayment(@Body() data: {
@@ -228,18 +261,19 @@ export class FinanceController {
     transactionId?: string;
     reference?: string;
     paidAt?: string;
-    recordedById: string;
+    recordedById?: string;
     notes?: string;
     receiptUrl?: string;
-  }) {
+  }, @CurrentUser('id') currentUserId: string) {
     return this.financeService.recordPayment({
       ...data,
+      recordedById: currentUserId,
       paidAt: data.paidAt ? new Date(data.paidAt) : undefined,
     });
   }
 
   @Get('payments')
-  @Roles(UserRole.ADMIN, UserRole.TEACHER, UserRole.PARENT)
+  @Roles(UserRole.ADMIN, UserRole.TEACHER, UserRole.PARENT, UserRole.CASHIER)
   @ApiOperation({ summary: 'Get payments with filters' })
   @ApiQuery({ name: 'skip', required: false, type: Number })
   @ApiQuery({ name: 'take', required: false, type: Number })
@@ -272,14 +306,20 @@ export class FinanceController {
   }
 
   @Get('payments/:id')
-  @Roles(UserRole.ADMIN, UserRole.TEACHER, UserRole.PARENT, UserRole.STUDENT)
+  @Roles(UserRole.ADMIN, UserRole.TEACHER, UserRole.PARENT, UserRole.STUDENT, UserRole.CASHIER)
   @ApiOperation({ summary: 'Get payment by ID' })
-  async getPaymentById(@Param('id') id: string) {
+  async getPaymentById(
+    @Param('id') id: string,
+    @CurrentUser('id') userId: string,
+    @CurrentUser('role') role: UserRole,
+  ) {
+    await this.studentAccess.assertCanAccessPayment(userId, role, id);
     return this.financeService.getPaymentById(id);
   }
 
   @Delete('payments/:id')
   @Roles(UserRole.ADMIN)
+  @Permissions('finance.manage')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Delete payment (updates invoice status)' })
   async deletePayment(@Param('id') id: string) {
@@ -304,13 +344,16 @@ export class FinanceController {
   }
 
   @Get('students/:studentId/summary')
-  @Roles(UserRole.ADMIN, UserRole.TEACHER, UserRole.PARENT, UserRole.STUDENT)
+  @Roles(UserRole.ADMIN, UserRole.TEACHER, UserRole.PARENT, UserRole.STUDENT, UserRole.CASHIER)
   @ApiOperation({ summary: 'Get student fee summary' })
   @ApiQuery({ name: 'academicYearId', required: false, type: String })
   async getStudentFeeSummary(
     @Param('studentId') studentId: string,
+    @CurrentUser('id') userId: string,
+    @CurrentUser('role') role: UserRole,
     @Query('academicYearId') academicYearId?: string,
   ) {
+    await this.studentAccess.assertCanAccessStudent(userId, role, studentId);
     return this.financeService.getStudentFeeSummary(studentId, { academicYearId });
   }
 

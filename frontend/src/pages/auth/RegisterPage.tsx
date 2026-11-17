@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -11,12 +11,13 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { useRegister } from "@/hooks/useAuth";
-import { toast } from "@/hooks/useToast";
+import { useAuth } from "@/context/AuthContext";
+import { toast } from "sonner";
 
 const registerSchema = z.object({
   firstName: z.string().min(1, "First name is required"),
   lastName: z.string().min(1, "Last name is required"),
-  email: z.string().email("Please enter a valid email address"),
+  email: z.string().email("Please enter a valid email address").optional().or(z.literal("")),
   password: z.string().min(8, "Password must be at least 8 characters"),
   confirmPassword: z.string().min(1, "Please confirm your password"),
   role: z.enum(["ADMIN", "TEACHER", "STUDENT", "PARENT"]),
@@ -32,7 +33,21 @@ export function RegisterPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const registerMutation = useRegister();
-  const { toast } = toast();
+  const { isAuthenticated, user } = useAuth();
+
+  // Navigate after successful authentication
+  useEffect(() => {
+    if (isAuthenticated && user && !isLoading) {
+      const roleRoutes = {
+        ADMIN: "/admin/dashboard",
+        TEACHER: "/teacher/dashboard",
+        STUDENT: "/student/dashboard",
+        PARENT: "/parent/dashboard",
+      };
+      navigate(roleRoutes[user.role] || "/", { replace: true });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isAuthenticated, user, isLoading]);
 
   const {
     register,
@@ -57,23 +72,18 @@ export function RegisterPage() {
       await registerMutation.mutateAsync({
         firstName: data.firstName,
         lastName: data.lastName,
-        email: data.email,
+        email: data.email || undefined,
         password: data.password,
         role: data.role,
       });
-      toast({
-        title: "Account created!",
+      toast.success("Account created!", {
         description: "You have been successfully registered.",
-        variant: "success",
       });
-      navigate("/");
+      // Navigation handled by useEffect after auth state updates
     } catch (error: any) {
-      toast({
-        title: "Registration failed",
+      toast.error("Registration failed", {
         description: error.response?.data?.message || "Failed to create account",
-        variant: "destructive",
       });
-    } finally {
       setIsLoading(false);
     }
   };
@@ -136,7 +146,7 @@ export function RegisterPage() {
 
               {/* Email */}
               <div className="space-y-2">
-                <Label htmlFor="email">Email</Label>
+                <Label htmlFor="email">Email (Optional)</Label>
                 <div className="relative">
                   <Mail className="absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-gray-400" />
                   <Input

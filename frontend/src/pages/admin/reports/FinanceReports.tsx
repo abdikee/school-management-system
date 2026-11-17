@@ -56,12 +56,16 @@ export function AdminFinanceReports() {
     });
   };
 
-  const financeData = dashboard || {};
-  const revenue = financeData.revenue || {};
-  const invoices = financeData.invoices || {};
-  const byStatus = financeData.byStatus || [];
+  const financeData = dashboard || {
+    totalRevenue: 0,
+    pendingAmount: 0,
+    overdueAmount: 0,
+    collectedAmount: 0,
+    byFeeStructure: [],
+    recentPayments: []
+  };
   const byFeeStructure = financeData.byFeeStructure || [];
-  const monthlyRevenue = financeData.monthlyRevenue || [];
+  const monthlyRevenue = dashboard?.monthlyRevenue || [];
 
   return (
     <div className="space-y-6">
@@ -176,7 +180,7 @@ export function AdminFinanceReports() {
               </CardHeader>
               <CardContent>
                 <div className="text-3xl font-bold text-green-600">
-                  ${(revenue.collected || 0).toLocaleString()}
+                  ${(financeData.totalRevenue || 0).toLocaleString()}
                 </div>
               </CardContent>
             </Card>
@@ -189,7 +193,7 @@ export function AdminFinanceReports() {
               </CardHeader>
               <CardContent>
                 <div className="text-3xl font-bold text-yellow-600">
-                  ${(revenue.pending || 0).toLocaleString()}
+                  ${(financeData.pendingAmount || 0).toLocaleString()}
                 </div>
               </CardContent>
             </Card>
@@ -202,32 +206,32 @@ export function AdminFinanceReports() {
               </CardHeader>
               <CardContent>
                 <div className="text-3xl font-bold text-red-600">
-                  ${(revenue.overdue || 0).toLocaleString()}
+                  ${(financeData.overdueAmount || 0).toLocaleString()}
                 </div>
               </CardContent>
             </Card>
             <Card>
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium text-muted-foreground">Total Invoices</CardTitle>
+                <CardTitle className="text-sm font-medium text-muted-foreground">Collected</CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="text-3xl font-bold">{invoices.total || 0}</div>
+                <div className="text-3xl font-bold text-green-600">${(financeData.collectedAmount || 0).toLocaleString()}</div>
               </CardContent>
             </Card>
             <Card>
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium text-muted-foreground">Paid Invoices</CardTitle>
+                <CardTitle className="text-sm font-medium text-muted-foreground">Fee Structures</CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="text-3xl font-bold text-green-600">{invoices.paid || 0}</div>
+                <div className="text-3xl font-bold">{byFeeStructure.length}</div>
               </CardContent>
             </Card>
             <Card>
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium text-muted-foreground">Overdue Invoices</CardTitle>
+                <CardTitle className="text-sm font-medium text-muted-foreground">Recent Payments</CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="text-3xl font-bold text-red-600">{invoices.overdue || 0}</div>
+                <div className="text-3xl font-bold">{financeData.recentPayments?.length || 0}</div>
               </CardContent>
             </Card>
           </div>
@@ -262,12 +266,12 @@ export function AdminFinanceReports() {
                 ) : byFeeStructure.length > 0 ? (
                   <div className="space-y-3 max-h-[300px] overflow-y-auto">
                     {byFeeStructure.map((fs: any) => (
-                      <div key={fs.feeStructure?.id || fs.feeStructureId} className="p-3 bg-muted/50 rounded-lg">
+                      <div key={fs.feeStructure?.id} className="p-3 bg-muted/50 rounded-lg">
                         <p className="font-medium">{fs.feeStructure?.name || "Unknown"}</p>
-                        <p className="text-sm text-muted-foreground">{fs.feeStructure?.frequency}</p>
+                        <p className="text-sm text-muted-foreground">{fs.feeStructure?.frequency || ""}</p>
                         <div className="flex justify-between mt-2">
-                          <span className="text-lg font-bold text-primary">${(fs.totalAmount || 0).toLocaleString()}</span>
-                          <span className="text-sm text-muted-foreground">{fs.count} invoices</span>
+                          <span className="text-lg font-bold text-primary">${(fs.total || 0).toLocaleString()}</span>
+                          <span className="text-sm text-muted-foreground">{fs.collected ? `${fs.collected} collected` : ""}</span>
                         </div>
                       </div>
                     ))}
@@ -278,24 +282,6 @@ export function AdminFinanceReports() {
               </CardContent>
             </Card>
           </div>
-
-          {/* Invoice Status Breakdown */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Invoices by Status</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-5">
-                {byStatus.map((status: any) => (
-                  <div key={status.status} className="p-4 bg-muted/50 rounded-lg text-center">
-                    <p className="text-sm text-muted-foreground">{status.status}</p>
-                    <p className="text-3xl font-bold">{status.count}</p>
-                    <p className="text-sm text-muted-foreground">${(status.totalAmount || 0).toLocaleString()}</p>
-                  </div>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
         </>
       )}
 
@@ -314,25 +300,29 @@ export function AdminFinanceReports() {
                   <Card>
                     <CardContent className="pt-6">
                       <p className="text-sm text-muted-foreground">Total Invoiced</p>
-                      <p className="text-3xl font-bold">${(feeCollection.summary?.totalInvoiced || 0).toLocaleString()}</p>
+                      <p className="text-3xl font-bold">${(feeCollection.summary?.totalAmount || 0).toLocaleString()}</p>
                     </CardContent>
                   </Card>
                   <Card>
                     <CardContent className="pt-6">
                       <p className="text-sm text-muted-foreground">Collected</p>
-                      <p className="text-3xl font-bold text-green-600">${(feeCollection.summary?.totalCollected || 0).toLocaleString()}</p>
+                      <p className="text-3xl font-bold text-green-600">${(feeCollection.summary?.collectedAmount || 0).toLocaleString()}</p>
                     </CardContent>
                   </Card>
                   <Card>
                     <CardContent className="pt-6">
                       <p className="text-sm text-muted-foreground">Outstanding</p>
-                      <p className="text-3xl font-bold text-red-600">${(feeCollection.summary?.totalOutstanding || 0).toLocaleString()}</p>
+                      <p className="text-3xl font-bold text-red-600">${(feeCollection.summary?.outstandingAmount || 0).toLocaleString()}</p>
                     </CardContent>
                   </Card>
                   <Card>
                     <CardContent className="pt-6">
                       <p className="text-sm text-muted-foreground">Collection Rate</p>
-                      <p className="text-3xl font-bold text-primary">{feeCollection.summary?.collectionRate?.toFixed(1) || 0}%</p>
+                      <p className="text-3xl font-bold text-primary">
+                        {(feeCollection.summary?.totalAmount && feeCollection.summary?.collectedAmount
+                          ? ((feeCollection.summary.collectedAmount / feeCollection.summary.totalAmount) * 100).toFixed(1)
+                          : 0)}%
+                      </p>
                     </CardContent>
                   </Card>
                 </div>

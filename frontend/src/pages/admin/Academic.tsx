@@ -1118,7 +1118,7 @@ function AcademicForm({
                 <FormItem><FormLabel>Timezone *</FormLabel><FormControl><Input {...field} defaultValue="UTC" /></FormControl><FormMessage /></FormItem>
               )} />
               <FormField control={form.control} name="currency" render={({ field }) => (
-                <FormItem><FormLabel>Currency *</FormLabel><FormControl><Input {...field} defaultValue="USD" /></FormControl><FormMessage /></FormItem>
+                <FormItem><FormLabel>Currency *</FormLabel><FormControl><Input {...field} defaultValue="ETB" /></FormControl><FormMessage /></FormItem>
               )} />
             </div>
           </div>
@@ -1321,7 +1321,7 @@ function getDefaultValues(tab: AcademicTab, item: any, _schools: School[], acade
   }
   switch (tab) {
     case "schools":
-      return { name: "", address: "", phone: "", email: "", website: "", academicYearStart: new Date().getFullYear(), academicYearEnd: new Date().getFullYear() + 1, timezone: "UTC", currency: "USD" };
+      return { name: "", address: "", phone: "", email: "", website: "", academicYearStart: new Date().getFullYear(), academicYearEnd: new Date().getFullYear() + 1, timezone: "UTC", currency: "ETB" };
     case "academic-years":
       return { name: "", startDate: "", endDate: "", isCurrent: false };
     case "grade-levels":

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -11,7 +11,9 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { useLogin } from "@/hooks/useAuth";
-import { toast } from "@/hooks/useToast";
+import { useAuth } from "@/context/AuthContext";
+import { toast } from "sonner";
+import type { LoginDto } from "@/types/api";
 
 const loginSchema = z.object({
   email: z.string().email("Please enter a valid email address"),
@@ -26,7 +28,25 @@ export function LoginPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const loginMutation = useLogin();
-  const { toast } = toast();
+  const { isAuthenticated, user } = useAuth();
+
+  // Navigate after successful authentication
+  useEffect(() => {
+    console.log('LoginPage: Auth state changed', { isAuthenticated, user });
+    if (isAuthenticated && user && !isLoading) {
+      console.log('LoginPage: Navigating to dashboard for role:', user.role);
+      const roleRoutes = {
+        ADMIN: "/admin/dashboard",
+        TEACHER: "/teacher/dashboard",
+        STUDENT: "/student/dashboard",
+        PARENT: "/parent/dashboard",
+      };
+      const targetRoute = roleRoutes[user.role] || "/";
+      console.log('LoginPage: Target route:', targetRoute);
+      navigate(targetRoute, { replace: true });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isAuthenticated, user, isLoading]);
 
   const {
     register,
@@ -44,20 +64,18 @@ export function LoginPage() {
   const onSubmit = async (data: LoginFormData) => {
     setIsLoading(true);
     try {
-      await loginMutation.mutateAsync(data);
-      toast({
-        title: "Welcome back!",
+      // Cast to LoginDto to satisfy TypeScript (defaultValues makes fields optional in inferred type)
+      // Omit remember field which is not in LoginDto
+      const { remember, ...loginData } = data;
+      await loginMutation.mutateAsync(loginData as LoginDto);
+      toast.success("Welcome back!", {
         description: "You have been successfully logged in.",
-        variant: "success",
       });
-      navigate("/");
+      // Navigation handled by useEffect after auth state updates
     } catch (error: any) {
-      toast({
-        title: "Login failed",
+      toast.error("Login failed", {
         description: error.response?.data?.message || "Invalid email or password",
-        variant: "destructive",
       });
-    } finally {
       setIsLoading(false);
     }
   };

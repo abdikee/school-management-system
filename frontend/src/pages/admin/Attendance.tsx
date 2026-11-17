@@ -1,9 +1,9 @@
 "use client";
 
 import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation } from "@tanstack/react-query";
 import { attendanceApi, reportsApi, academicApi, usersApi } from "@/services/api";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   Card,
   CardContent,
@@ -20,7 +20,6 @@ import {
 } from "@/components/ui/table";
 import {
   Tabs,
-  TabsContent,
   TabsList,
   TabsTrigger,
 } from "@/components/ui/tabs";
@@ -50,8 +49,6 @@ import { z } from "zod";
 import {
   Calendar,
   Users,
-  Search,
-  Filter,
   Plus,
   Download,
   CheckCircle,
@@ -61,10 +58,11 @@ import {
   ChevronLeft,
   ChevronRight,
   AlertCircle,
+  Edit,
 } from "lucide-react";
 import { cn, formatDate } from "@/lib/utils";
 import { toast } from "sonner";
-import { Class, Student, Subject } from "@/types/api";
+import type { Class, Student, Subject } from "@/types/api";
 import { useAttendanceSummary, useClassAttendanceReport, useAttendanceTrends, useExportAttendance } from "@/hooks/useReports";
 
 const attendanceTabs = [
@@ -76,8 +74,7 @@ const attendanceTabs = [
 type AttendanceTab = (typeof attendanceTabs)[number]["id"];
 
 export function AdminAttendance() {
-  const [activeTab, setActiveTab] = useState<AttendanceTab>("record");
-  const [search, setSearch] = useState("");
+  const [activeTab, setActiveTab] = useState<string>("record");
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
   const [selectedClassId, setSelectedClassId] = useState("");
@@ -98,16 +95,16 @@ export function AdminAttendance() {
   // CLASSES
   // ============================================
   const { data: classesData, isLoading: classesLoading } = useQuery({
-    queryKey: ["classes", search],
-    queryFn: () => academicApi.getClasses({ search: search || undefined, take: 100 }),
+    queryKey: ["classes", ""],
+    queryFn: () => academicApi.getClasses({ take: 100 }),
   });
 
   // ============================================
   // SUBJECTS (for selected class)
   // ============================================
   const { data: subjectsData, isLoading: subjectsLoading } = useQuery({
-    queryKey: ["subjects-for-class", selectedClassId],
-    queryFn: () => academicApi.getSubjectsByClass(selectedClassId),
+    queryKey: ["class-subjects", selectedClassId],
+    queryFn: () => academicApi.getClassSubjects(selectedClassId),
     enabled: !!selectedClassId,
   });
 
@@ -116,7 +113,7 @@ export function AdminAttendance() {
   // ============================================
   const { data: sessionsData, isLoading: sessionsLoading } = useQuery({
     queryKey: ["attendance-sessions", selectedClassId, selectedSubjectId, dateFrom, dateTo, page, pageSize],
-    queryFn: () => attendanceApi.getSessions({
+    queryFn: () => attendanceApi.getAttendanceSessions({
       skip: (page - 1) * pageSize,
       take: pageSize,
       classId: selectedClassId || undefined,
@@ -128,7 +125,7 @@ export function AdminAttendance() {
   });
 
   const createSessionMutation = useMutation({
-    mutationFn: (data: any) => attendanceApi.createSession(data),
+    mutationFn: (data: any) => attendanceApi.createAttendanceSession(data),
     onSuccess: () => {
       toast.success("Session created");
       queryClient.invalidateQueries({ queryKey: ["attendance-sessions"] });
@@ -138,7 +135,7 @@ export function AdminAttendance() {
   });
 
   const updateSessionMutation = useMutation({
-    mutationFn: ({ id, data }: { id: string; data: any }) => attendanceApi.updateSession(id, data),
+    mutationFn: ({ id, data }: { id: string; data: any }) => attendanceApi.updateAttendanceSession(id, data),
     onSuccess: () => {
       toast.success("Session updated");
       queryClient.invalidateQueries({ queryKey: ["attendance-sessions"] });
@@ -148,7 +145,7 @@ export function AdminAttendance() {
   });
 
   const deleteSessionMutation = useMutation({
-    mutationFn: (id: string) => attendanceApi.deleteSession(id),
+    mutationFn: (id: string) => attendanceApi.deleteAttendanceSession(id),
     onSuccess: () => {
       toast.success("Session deleted");
       queryClient.invalidateQueries({ queryKey: ["attendance-sessions"] });
@@ -167,7 +164,7 @@ export function AdminAttendance() {
       setStudents(data.data || []);
 
       // Load existing attendance for this date
-      const records = await attendanceApi.getByDate(selectedDate, { classId: selectedClassId });
+      const records = await attendanceApi.getAttendances({ date: selectedDate, classId: selectedClassId });
       const recordsMap: Record<string, string> = {};
       (records.data || []).forEach((r: any) => {
         recordsMap[r.studentId] = r.status;
@@ -182,11 +179,12 @@ export function AdminAttendance() {
 
   const recordAttendanceMutation = useMutation({
     mutationFn: (records: Array<{ studentId: string; status: string; notes?: string }>) =>
-      attendanceApi.bulkCreate({
+      attendanceApi.bulkRecordAttendance({
         classId: selectedClassId!,
         subjectId: selectedSubjectId || undefined,
         date: selectedDate,
         records,
+        recordedById: "", // This will be set by the backend based on auth
       }),
     onSuccess: () => {
       toast.success("Attendance recorded");
@@ -509,7 +507,7 @@ export function AdminAttendance() {
                         </TableCell>
                         <TableCell className="text-right">
                           <div className="flex items-center justify-end gap-2">
-                            <Button variant="ghost" size="icon" onClick={() => { setSelectedSession(session); setRecordDialogOpen(true); }}><Edit className="h-4 w-4" /></Button>
+                            <Button variant="ghost" size="icon" onClick={() => { setSelectedSession(session); setEditDialogOpen(true); }}><Edit className="h-4 w-4" /></Button>
                             <Button variant="ghost" size="icon" onClick={() => deleteSessionMutation.mutate(session.id)} disabled={deleteSessionMutation.isPending}><XCircle className="h-4 w-4 text-red-600" /></Button>
                           </div>
                         </TableCell>
@@ -527,10 +525,10 @@ export function AdminAttendance() {
                   Page {sessionsData.meta.page} of {sessionsData.meta.totalPages} ({sessionsData.meta.total} total)
                 </div>
                 <div className="flex gap-2">
-                  <Button variant="outline" size="sm" onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1}>
+                  <Button variant="outline" size="sm" onClick={() => setPage((p: number) => Math.max(1, p - 1))} disabled={page === 1}>
                     <ChevronLeft className="h-4 w-4" />
                   </Button>
-                  <Button variant="outline" size="sm" onClick={() => setPage(p => Math.min(sessionsData.meta.totalPages, p + 1))} disabled={page === sessionsData.meta.totalPages}>
+                  <Button variant="outline" size="sm" onClick={() => setPage((p: number) => Math.min(sessionsData.meta.totalPages, p + 1))} disabled={page === sessionsData.meta.totalPages}>
                     <ChevronRight className="h-4 w-4" />
                   </Button>
                 </div>
@@ -692,7 +690,7 @@ export function AdminAttendance() {
           </CardHeader>
           <CardContent>
             <div className="h-64 flex items-end justify-between gap-2 px-2">
-              {attendanceTrends.data.map((day, i) => (
+              {attendanceTrends.trends.map((day, i) => (
                 <div key={i} className="flex-1 flex flex-col items-center">
                   <div className="w-full flex items-end justify-between h-48 gap-1">
                     <div

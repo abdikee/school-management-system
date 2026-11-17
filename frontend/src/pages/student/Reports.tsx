@@ -445,7 +445,7 @@ export function StudentReports() {
               <CardContent>
                 <div className="text-3xl font-bold text-green-600">
                   {(() => {
-                    const total = Object.values(gradeDist).reduce((a, b) => a + b, 0);
+                    const total = Object.values(gradeDist as Record<string, number>).reduce((a, b) => a + b, 0);
                     const pass = (gradeDist["60-69"] || 0) + (gradeDist["70-79"] || 0) + (gradeDist["80-89"] || 0) + (gradeDist["90-100"] || 0);
                     return total > 0 ? ((pass / total) * 100).toFixed(1) : 0;
                   })()}%

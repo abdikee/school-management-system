@@ -18,6 +18,8 @@ import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
+import { Permissions } from '../../common/decorators/permissions.decorator';
+import { StudentAccessService } from '../../common/policies/student-access.service';
 import { UserRole } from '@prisma/client';
 import { Prisma } from '@prisma/client';
 
@@ -26,7 +28,10 @@ import { Prisma } from '@prisma/client';
 @UseGuards(JwtAuthGuard, RolesGuard)
 @ApiBearerAuth()
 export class GradesController {
-  constructor(private gradesService: GradesService) {}
+  constructor(
+    private gradesService: GradesService,
+    private studentAccess: StudentAccessService,
+  ) {}
 
   // ============================================
   // ASSESSMENT TYPE OPERATIONS
@@ -34,6 +39,7 @@ export class GradesController {
 
   @Post('assessment-types')
   @Roles(UserRole.ADMIN)
+  @Permissions('marks.manage')
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({ summary: 'Create assessment type' })
   async createAssessmentType(@Body() data: {
@@ -70,6 +76,7 @@ export class GradesController {
 
   @Put('assessment-types/:id')
   @Roles(UserRole.ADMIN)
+  @Permissions('marks.manage')
   @ApiOperation({ summary: 'Update assessment type' })
   async updateAssessmentType(
     @Param('id') id: string,
@@ -80,6 +87,7 @@ export class GradesController {
 
   @Delete('assessment-types/:id')
   @Roles(UserRole.ADMIN)
+  @Permissions('marks.manage')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Delete assessment type' })
   async deleteAssessmentType(@Param('id') id: string) {
@@ -92,6 +100,7 @@ export class GradesController {
 
   @Post('assessments')
   @Roles(UserRole.ADMIN, UserRole.TEACHER)
+  @Permissions('marks.manage')
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({ summary: 'Create assessment' })
   async createAssessment(@Body() data: {
@@ -151,6 +160,7 @@ export class GradesController {
 
   @Put('assessments/:id')
   @Roles(UserRole.ADMIN, UserRole.TEACHER)
+  @Permissions('marks.manage')
   @ApiOperation({ summary: 'Update assessment' })
   async updateAssessment(
     @Param('id') id: string,
@@ -161,6 +171,7 @@ export class GradesController {
 
   @Put('assessments/:id/publish')
   @Roles(UserRole.ADMIN, UserRole.TEACHER)
+  @Permissions('marks.manage')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Publish assessment' })
   async publishAssessment(@Param('id') id: string) {
@@ -169,6 +180,7 @@ export class GradesController {
 
   @Put('assessments/:id/unpublish')
   @Roles(UserRole.ADMIN, UserRole.TEACHER)
+  @Permissions('marks.manage')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Unpublish assessment' })
   async unpublishAssessment(@Param('id') id: string) {
@@ -177,6 +189,7 @@ export class GradesController {
 
   @Delete('assessments/:id')
   @Roles(UserRole.ADMIN)
+  @Permissions('marks.manage')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Delete assessment' })
   async deleteAssessment(@Param('id') id: string) {
@@ -189,6 +202,7 @@ export class GradesController {
 
   @Post('grades')
   @Roles(UserRole.ADMIN, UserRole.TEACHER)
+  @Permissions('marks.manage')
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({ summary: 'Record single grade' })
   async recordGrade(@Body() data: {
@@ -205,6 +219,7 @@ export class GradesController {
 
   @Post('grades/bulk')
   @Roles(UserRole.ADMIN, UserRole.TEACHER)
+  @Permissions('marks.manage')
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({ summary: 'Bulk record grades for an assessment' })
   async bulkRecordGrades(@Body() data: {
@@ -251,12 +266,18 @@ export class GradesController {
   @Get('grades/:id')
   @Roles(UserRole.ADMIN, UserRole.TEACHER, UserRole.STUDENT, UserRole.PARENT)
   @ApiOperation({ summary: 'Get grade by ID' })
-  async getGradeById(@Param('id') id: string) {
+  async getGradeById(
+    @Param('id') id: string,
+    @CurrentUser('id') userId: string,
+    @CurrentUser('role') role: UserRole,
+  ) {
+    await this.studentAccess.assertCanAccessGrade(userId, role, id);
     return this.gradesService.getGradeById(id);
   }
 
   @Put('grades/:id')
   @Roles(UserRole.ADMIN, UserRole.TEACHER)
+  @Permissions('marks.manage')
   @ApiOperation({ summary: 'Update grade' })
   async updateGrade(
     @Param('id') id: string,
@@ -267,6 +288,7 @@ export class GradesController {
 
   @Put('grades/:id/publish')
   @Roles(UserRole.ADMIN, UserRole.TEACHER)
+  @Permissions('marks.manage')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Publish grade' })
   async publishGrade(@Param('id') id: string) {
@@ -275,6 +297,7 @@ export class GradesController {
 
   @Put('grades/:id/unpublish')
   @Roles(UserRole.ADMIN, UserRole.TEACHER)
+  @Permissions('marks.manage')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Unpublish grade' })
   async unpublishGrade(@Param('id') id: string) {
@@ -283,6 +306,7 @@ export class GradesController {
 
   @Delete('grades/:id')
   @Roles(UserRole.ADMIN)
+  @Permissions('marks.manage')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Delete grade' })
   async deleteGrade(@Param('id') id: string) {
@@ -300,12 +324,25 @@ export class GradesController {
     return this.gradesService.getGradebook(classSubjectId);
   }
 
+  @Get('students/:studentId/subjects')
+  @Roles(UserRole.ADMIN, UserRole.TEACHER, UserRole.STUDENT, UserRole.PARENT)
+  @ApiOperation({ summary: 'Get subjects assigned to a student class' })
+  async getSubjectsForStudent(
+    @Param('studentId') studentId: string,
+    @CurrentUser('id') userId: string,
+    @CurrentUser('role') role: UserRole,
+  ) {
+    await this.studentAccess.assertCanAccessStudent(userId, role, studentId);
+    return this.gradesService.getSubjectsForStudent(studentId);
+  }
+
   // ============================================
   // REPORT CARD OPERATIONS
   // ============================================
 
   @Post('report-cards/generate')
   @Roles(UserRole.ADMIN, UserRole.TEACHER)
+  @Permissions('marks.manage')
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({ summary: 'Generate report card for a student' })
   async generateReportCard(@Body() data: {
@@ -318,6 +355,7 @@ export class GradesController {
 
   @Post('report-cards')
   @Roles(UserRole.ADMIN, UserRole.TEACHER)
+  @Permissions('marks.manage')
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({ summary: 'Save report card' })
   async saveReportCard(@Body() data: {
@@ -359,12 +397,18 @@ export class GradesController {
   @Get('report-cards/:id')
   @Roles(UserRole.ADMIN, UserRole.TEACHER, UserRole.STUDENT, UserRole.PARENT)
   @ApiOperation({ summary: 'Get report card by ID' })
-  async getReportCardById(@Param('id') id: string) {
+  async getReportCardById(
+    @Param('id') id: string,
+    @CurrentUser('id') userId: string,
+    @CurrentUser('role') role: UserRole,
+  ) {
+    await this.studentAccess.assertCanAccessReportCard(userId, role, id);
     return this.gradesService.getReportCardById(id);
   }
 
   @Put('report-cards/:id/publish')
   @Roles(UserRole.ADMIN, UserRole.TEACHER)
+  @Permissions('results.approve')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Publish report card' })
   async publishReportCard(@Param('id') id: string) {

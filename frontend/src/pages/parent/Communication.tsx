@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { communicationApi, usersApi } from "@/services/api";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -31,7 +31,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Search, Bell, Mail, MessageSquare, AlertCircle, CheckCircle, ChevronLeft, ChevronRight, Download, Users } from "lucide-react";
 import { cn, formatDateTime } from "@/lib/utils";
-import { Message, Announcement, Notification, Student } from "@/types/api";
+import { Message, Announcement, Notification, Student, Parent } from "@/types/api";
 import { toast } from "sonner";
 
 const parentCommunicationTabs = [
@@ -50,17 +50,32 @@ export function ParentCommunication() {
   const [statusFilter, setStatusFilter] = useState("");
   const [selectedChildId, setSelectedChildId] = useState("");
 
-  // Get current parent's children
+  // Get current user profile
   const { data: currentUser } = useQuery({
     queryKey: ["current-user"],
     queryFn: () => usersApi.getProfile(),
   });
 
-  const children = currentUser?.data?.parent?.children || [];
+  // Get parent's children - fetch parent record if user is a parent
+  const { data: parentData, isLoading: parentLoading } = useQuery({
+    queryKey: ["parent-data", currentUser?.id],
+    queryFn: async () => {
+      if (!currentUser || currentUser.role !== "PARENT") return null;
+      const parentsResponse = await usersApi.getParents({ search: "", take: 100 });
+      const parent = parentsResponse.data.find((p: Parent) => p.userId === currentUser.id);
+      return parent;
+    },
+    enabled: !!currentUser && currentUser.role === "PARENT",
+  });
 
-  if (children.length > 0 && !selectedChildId) {
-    setSelectedChildId(children[0].id);
-  }
+  const children = parentData?.students || [];
+
+  // Auto-select first child if none selected
+  useEffect(() => {
+    if (children.length > 0 && !selectedChildId) {
+      setSelectedChildId(children[0].id);
+    }
+  }, [children, selectedChildId]);
 
   const selectedChild = children.find((c: Student) => c.id === selectedChildId);
 
@@ -78,8 +93,8 @@ export function ParentCommunication() {
       take: pageSize,
       search: search || undefined,
       isPublished: statusFilter === "PUBLISHED" ? true : statusFilter === "DRAFT" ? false : undefined,
-      targetClassIds: targetClassIds.length > 0 ? targetClassIds : undefined,
-      targetGradeLevelIds: targetGradeLevelIds.length > 0 ? targetGradeLevelIds : undefined,
+      targetClassId: targetClassIds.length > 0 ? targetClassIds[0] : undefined, // API accepts single classId
+      targetGradeLevelId: targetGradeLevelIds.length > 0 ? targetGradeLevelIds[0] : undefined, // API accepts single gradeLevelId
     }),
     enabled: targetClassIds.length > 0 || targetGradeLevelIds.length > 0,
   });
@@ -92,8 +107,9 @@ export function ParentCommunication() {
     queryFn: () => communicationApi.getNotifications({
       skip: (page - 1) * pageSize,
       take: pageSize,
-      search: search || undefined,
+      // search not supported by getNotifications API
       isRead: statusFilter === "READ" ? true : statusFilter === "UNREAD" ? false : undefined,
+      // type filter not used for statusFilter
     }),
   });
 
@@ -106,11 +122,12 @@ export function ParentCommunication() {
       skip: (page - 1) * pageSize,
       take: pageSize,
       search: search || undefined,
-      status: statusFilter || undefined,
+      role: statusFilter === "READ" || statusFilter === "UNREAD" ? "all" : "all", // role param, not status
+      isRead: statusFilter === "READ" ? true : statusFilter === "UNREAD" ? false : undefined,
     }),
   });
 
-  if (!selectedChild) {
+  if (parentLoading || !selectedChild) {
     return (
       <div className="space-y-6">
         <div>
@@ -120,7 +137,7 @@ export function ParentCommunication() {
         <Card>
           <CardContent className="py-12 text-center">
             <Users className="mx-auto h-12 w-12 text-gray-300 mb-4" />
-            <p className="text-gray-500">No children linked to your account</p>
+            <p className="text-gray-500">Loading children...</p>
           </CardContent>
         </Card>
       </div>
@@ -343,7 +360,7 @@ export function ParentCommunication() {
                         <Badge variant="secondary">{notification.type}</Badge>
                       </TableCell>
                       <TableCell className="font-medium max-w-xs truncate">{notification.title}</TableCell>
-                      <TableCell className="max-w-xs truncate text-gray-600">{notification.message}</TableCell>
+                      <TableCell className="max-w-xs truncate text-gray-600">{notification.body}</TableCell>
                       <TableCell>
                         {notification.channels?.map((c: string) => (
                           <span key={c} className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-700 mr-1 mb-1">
@@ -518,8 +535,8 @@ export function ParentCommunication() {
         </div>
         <div className="flex items-center gap-2">
           {children.length > 1 && (
-            <Select value={selectedChildId} onValueChange={setSelectedChildId} className="w-48">
-              <SelectTrigger><SelectValue placeholder="Select child" /></SelectTrigger>
+            <Select value={selectedChildId} onValueChange={setSelectedChildId}>
+              <SelectTrigger className="w-48"><SelectValue placeholder="Select child" /></SelectTrigger>
               <SelectContent>
                 {children.map((child: Student) => (
                   <SelectItem key={child.id} value={child.id}>
@@ -533,7 +550,7 @@ export function ParentCommunication() {
       </div>
 
       {/* Tabs */}
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
+      <Tabs value={activeTab} onValueChange={(value: string) => setActiveTab(value as ParentCommunicationTab)} className="space-y-4">
         <TabsList className="grid w-full grid-cols-3">
           {parentCommunicationTabs.map((tab) => (
             <TabsTrigger key={tab.id} value={tab.id} className="flex items-center justify-center gap-2">

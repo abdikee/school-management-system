@@ -51,6 +51,14 @@ interface BulkGenerateInvoicesInput {
   dueDate: Date;
 }
 
+interface GenerateInvoicesInput {
+  feeStructureId: string;
+  classId?: string;
+  studentIds?: string[];
+  academicYearId?: string;
+  dueDate?: string;
+}
+
 @Injectable()
 export class FinanceService {
   constructor(private prisma: PrismaService) {}
@@ -358,6 +366,43 @@ export class FinanceService {
     }
 
     return { generated: results.length, errors, invoices: results };
+  }
+
+  async generateInvoices(data: GenerateInvoicesInput) {
+    const feeStructure = await this.prisma.feeStructure.findUnique({
+      where: { id: data.feeStructureId },
+    });
+    if (!feeStructure) {
+      throw new NotFoundException('Fee structure not found');
+    }
+
+    let studentIds = data.studentIds;
+    if (data.classId) {
+      const students = await this.prisma.student.findMany({
+        where: { classId: data.classId },
+        select: { id: true },
+      });
+      studentIds = students.map((student) => student.id);
+    }
+
+    if (!studentIds?.length) {
+      throw new BadRequestException('At least one student or class is required');
+    }
+
+    const dueDate = data.dueDate
+      ? new Date(data.dueDate)
+      : new Date(new Date().getFullYear(), new Date().getMonth(), feeStructure.dueDay);
+
+    if (Number.isNaN(dueDate.getTime())) {
+      throw new BadRequestException('Invalid due date');
+    }
+
+    return this.bulkGenerateInvoices({
+      feeStructureId: data.feeStructureId,
+      academicYearId: data.academicYearId ?? feeStructure.academicYearId,
+      studentIds,
+      dueDate,
+    });
   }
 
   async getInvoices(params: {

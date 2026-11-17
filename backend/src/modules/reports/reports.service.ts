@@ -565,6 +565,7 @@ export class ReportsService {
       byStatus,
       byFeeStructure,
       monthlyRevenue,
+      recentPayments,
     ] = await Promise.all([
       this.prisma.invoice.count({ where }),
       this.prisma.invoice.count({ where: { ...where, status: InvoiceStatus.PENDING } }),
@@ -605,6 +606,20 @@ export class ReportsService {
         },
         _sum: { amount: true },
       }),
+      this.prisma.payment.findMany({
+        where: { invoice: where },
+        orderBy: { paidAt: 'desc' },
+        take: 10,
+        include: {
+          invoice: {
+            include: {
+              student: { include: { user: true } },
+              feeStructure: true,
+            },
+          },
+          recordedBy: true,
+        },
+      }),
     ]);
 
     const feeStructureDetails = await this.prisma.feeStructure.findMany({
@@ -612,14 +627,39 @@ export class ReportsService {
       select: { id: true, name: true, amount: true, frequency: true },
     });
 
-    const byFeeStructureDetailed = byFeeStructure.map((fs) => {
+    const byFeeStructureDetailed = await Promise.all(byFeeStructure.map(async (fs) => {
       const detail = feeStructureDetails.find((f) => f.id === fs.feeStructureId);
+      const invoices = await this.prisma.invoice.findMany({
+        where: { ...where, feeStructureId: fs.feeStructureId },
+        select: {
+          totalAmount: true,
+          status: true,
+          dueDate: true,
+          payments: { select: { amount: true } },
+        },
+      });
+      const total = invoices.reduce((sum, invoice) => sum + invoice.totalAmount, 0);
+      const collected = invoices.reduce(
+        (sum, invoice) => sum + invoice.payments.reduce((paymentSum, payment) => paymentSum + payment.amount, 0),
+        0,
+      );
+      const overdue = invoices
+        .filter(
+          (invoice) =>
+            (invoice.status === InvoiceStatus.PENDING || invoice.status === InvoiceStatus.PARTIAL) &&
+            invoice.dueDate < new Date(),
+        )
+        .reduce((sum, invoice) => sum + invoice.totalAmount, 0);
       return {
         feeStructure: detail,
         count: fs._count.id,
         totalAmount: fs._sum.totalAmount ?? 0,
+        total,
+        collected,
+        pending: Math.max(total - collected, 0),
+        overdue,
       };
-    });
+    }));
 
     // Monthly revenue aggregation
     const monthlyMap = new Map<string, number>();
@@ -633,6 +673,11 @@ export class ReportsService {
       .sort((a, b) => a.month.localeCompare(b.month));
 
     return {
+      totalRevenue: totalRevenue._sum.totalAmount ?? 0,
+      pendingAmount: pendingRevenue._sum.totalAmount ?? 0,
+      overdueAmount: overdueRevenue._sum.totalAmount ?? 0,
+      collectedAmount: totalRevenue._sum.totalAmount ?? 0,
+      recentPayments,
       invoices: {
         total: totalInvoices,
         pending: pendingInvoices,

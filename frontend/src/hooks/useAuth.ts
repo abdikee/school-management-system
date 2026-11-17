@@ -17,13 +17,13 @@ export const useLogin = () => {
   return useMutation({
     mutationFn: (data: LoginDto) => authApi.login(data),
     onSuccess: (data: AuthTokens) => {
-      // Store tokens
+      // Store only the short-lived access token. Refresh tokens are kept in the
+      // backend-set httpOnly cookie and are never persisted in browser storage.
       localStorage.setItem("accessToken", data.accessToken);
-      localStorage.setItem("refreshToken", data.refreshToken);
       localStorage.setItem("user", JSON.stringify(data.user));
 
       // Set auth in store
-      setAuth(data.user, data.accessToken, data.refreshToken);
+      setAuth(data.user, data.accessToken, "");
 
       // Invalidate profile query
       queryClient.invalidateQueries({ queryKey: authKeys.profile() });
@@ -40,9 +40,8 @@ export const useRegister = () => {
     mutationFn: (data: RegisterDto) => authApi.register(data),
     onSuccess: (data: AuthTokens) => {
       localStorage.setItem("accessToken", data.accessToken);
-      localStorage.setItem("refreshToken", data.refreshToken);
       localStorage.setItem("user", JSON.stringify(data.user));
-      setAuth(data.user, data.accessToken, data.refreshToken);
+      setAuth(data.user, data.accessToken, "");
       queryClient.invalidateQueries({ queryKey: authKeys.profile() });
     },
   });
@@ -57,7 +56,6 @@ export const useLogout = () => {
     mutationFn: () => authApi.logout(),
     onSuccess: () => {
       localStorage.removeItem("accessToken");
-      localStorage.removeItem("refreshToken");
       localStorage.removeItem("user");
       clearAuth();
       queryClient.clear();
@@ -65,7 +63,6 @@ export const useLogout = () => {
     onError: () => {
       // Even if logout fails, clear local state
       localStorage.removeItem("accessToken");
-      localStorage.removeItem("refreshToken");
       localStorage.removeItem("user");
       clearAuth();
       queryClient.clear();
@@ -113,27 +110,23 @@ export const useVerifyEmail = () => {
   });
 };
 
-// Initialize auth from localStorage
+// Initialize auth from localStorage - returns user data without mutating store
 export const useInitializeAuth = () => {
-  const { setAuth, clearAuth } = useAuthStore();
-
   return useQuery({
     queryKey: ["auth", "initialize"],
-    queryFn: () => {
+    queryFn: (): User | null => {
       const userStr = localStorage.getItem("user");
       const accessToken = localStorage.getItem("accessToken");
-      const refreshToken = localStorage.getItem("refreshToken");
 
-      if (userStr && accessToken && refreshToken) {
+      if (userStr && accessToken) {
         try {
           const user = JSON.parse(userStr) as User;
-          setAuth(user, accessToken, refreshToken);
           return user;
         } catch {
-          clearAuth();
           return null;
         }
       }
+      // No stored auth data
       return null;
     },
     staleTime: Infinity,

@@ -13,7 +13,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Calendar, Clock, BookOpen, User, ChevronLeft, ChevronRight, Today, Search } from "lucide-react";
+import { Calendar, Clock, BookOpen, User, ChevronLeft, ChevronRight, Search } from "lucide-react";
 import { cn, formatDate, formatTime } from "@/lib/utils";
 import { Class, TimetableEntry, Subject, Teacher, GradeLevel } from "@/types/api";
 
@@ -101,7 +101,7 @@ export function StudentSchedule() {
         <div className="flex items-center gap-2">
           <Button variant="outline" onClick={prevWeek}><ChevronLeft className="h-4 w-4" /></Button>
           <Button variant="outline" onClick={nextWeek}><ChevronRight className="h-4 w-4" /></Button>
-          <Button variant="outline" onClick={goToToday}><Today className="mr-2 h-4 w-4" /> Today</Button>
+          <Button variant="outline" onClick={goToToday}><Calendar className="mr-2 h-4 w-4" /> Today</Button>
         </div>
       </div>
 
@@ -134,7 +134,7 @@ export function StudentSchedule() {
       </Card>
 
       {viewMode === "week" ? (
-        <WeekView timetableByDay={timetableByDay} currentDayIndex={currentDayIndex} isLoading={isLoading} />
+        <WeekView timetableByDay={timetableByDay} selectedWeek={selectedWeek} currentDayIndex={currentDayIndex} isLoading={isLoading} />
       ) : (
         <DayView timetableByDay={timetableByDay} selectedWeek={selectedWeek} currentDayIndex={currentDayIndex} isLoading={isLoading} />
       )}
@@ -142,7 +142,7 @@ export function StudentSchedule() {
   );
 }
 
-function WeekView({ timetableByDay, currentDayIndex, isLoading }: { timetableByDay: any; currentDayIndex: number; isLoading: boolean }) {
+function WeekView({ timetableByDay, selectedWeek, currentDayIndex, isLoading }: { timetableByDay: any; selectedWeek: Date; currentDayIndex: number; isLoading: boolean }) {
   const timeSlots = generateTimeSlots();
 
   if (isLoading) {

@@ -41,6 +41,26 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       throw new UnauthorizedException('Account is not active');
     }
 
+    const inactivityMinutes = Number(
+      this.configService.get('auth.inactivityMinutes') || 30,
+    );
+    const inactivityLimit = inactivityMinutes * 60 * 1000;
+    if (
+      user.lastActivityAt &&
+      Date.now() - user.lastActivityAt.getTime() > inactivityLimit
+    ) {
+      await this.prisma.refreshToken.updateMany({
+        where: { userId: user.id, revokedAt: null },
+        data: { revokedAt: new Date() },
+      });
+      throw new UnauthorizedException('Session expired due to inactivity');
+    }
+
+    await this.prisma.user.update({
+      where: { id: user.id },
+      data: { lastActivityAt: new Date() },
+    });
+
     // Attach role-specific data
     const { passwordHash, refreshTokens, ...result } = user;
     return result;

@@ -73,7 +73,7 @@ export function AdminAttendanceReports() {
     });
   };
 
-  const summaryStats = summary || {};
+  const summaryStats = summary || { totalRecords: 0, present: 0, absent: 0, late: 0, excused: 0, attendanceRate: 0 };
   const trendData = trends?.trends || [];
 
   return (
@@ -170,7 +170,7 @@ export function AdminAttendanceReports() {
             <CardTitle className="text-sm font-medium text-muted-foreground">Present</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-3xl font-bold text-green-600">{summaryStats.presentCount || 0}</div>
+            <div className="text-3xl font-bold text-green-600">{summaryStats.present || 0}</div>
           </CardContent>
         </Card>
         <Card>
@@ -178,7 +178,7 @@ export function AdminAttendanceReports() {
             <CardTitle className="text-sm font-medium text-muted-foreground">Absent</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-3xl font-bold text-red-600">{summaryStats.absentCount || 0}</div>
+            <div className="text-3xl font-bold text-red-600">{summaryStats.absent || 0}</div>
           </CardContent>
         </Card>
         <Card>
@@ -186,7 +186,7 @@ export function AdminAttendanceReports() {
             <CardTitle className="text-sm font-medium text-muted-foreground">Late</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-3xl font-bold text-yellow-600">{summaryStats.lateCount || 0}</div>
+            <div className="text-3xl font-bold text-yellow-600">{summaryStats.late || 0}</div>
           </CardContent>
         </Card>
         <Card>
@@ -194,7 +194,7 @@ export function AdminAttendanceReports() {
             <CardTitle className="text-sm font-medium text-muted-foreground">Excused</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-3xl font-bold text-blue-600">{summaryStats.excusedCount || 0}</div>
+            <div className="text-3xl font-bold text-blue-600">{summaryStats.excused || 0}</div>
           </CardContent>
         </Card>
         <Card>
@@ -262,7 +262,7 @@ export function AdminAttendanceReports() {
                 <div className="h-[300px] flex items-center justify-center text-muted-foreground">Loading...</div>
               ) : (
                 <AttendanceRateChart
-                  data={trendData.map((t) => ({ date: t.date, rate: t.attendanceRate }))}
+                  data={trendData.map((t) => ({ date: t.date, rate: t.rate }))}
                   height={300}
                 />
               )}
@@ -357,7 +357,7 @@ export function AdminAttendanceReports() {
             ) : (
               <div className="grid gap-4 md:grid-cols-2">
                 <AttendanceRateChart
-                  data={trendData.map((t) => ({ date: t.date, rate: t.attendanceRate }))}
+                  data={trendData.map((t) => ({ date: t.date, rate: t.rate }))}
                   height={300}
                 />
                 <AttendanceChart

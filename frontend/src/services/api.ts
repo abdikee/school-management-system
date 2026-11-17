@@ -1,6 +1,6 @@
 import axios, { type AxiosError, type AxiosInstance, type InternalAxiosRequestConfig } from "axios";
-import type { AuthTokens, LoginDto, RegisterDto, ChangePasswordDto, ForgotPasswordDto, ResetPasswordDto } from "@/types/api";
-import type { User, UserRole, UserStatus, Student, Teacher, Parent, School, AcademicYear, GradeLevel, Subject, Class, TimetableEntry, Message, Announcement, Notification } from "@/types/api";
+import type { AuthTokens, LoginDto, RegisterDto, StudentRegistrationDto, StudentRegistrationResponse, ChangePasswordDto, ForgotPasswordDto, ResetPasswordDto } from "@/types/api";
+import type { User, UserRole, UserStatus, Student, Teacher, Parent, School, AcademicYear, GradeLevel, Subject, Class, TimetableEntry, Message, Announcement, Notification, FeeStructure, Invoice, Payment, AssessmentType, Assessment, Grade, SearchResponse } from "@/types/api";
 import type { DashboardOverview, TeacherDashboard, StudentDashboard, ParentDashboard } from "@/types/api";
 import type { AttendanceSummary, StudentAttendanceReport, ClassAttendanceReport, AttendanceTrends } from "@/types/api";
 import type { GradeSummary, StudentGradeReport, ClassGradeReport } from "@/types/api";
@@ -34,7 +34,13 @@ api.interceptors.request.use(
 
 // Response interceptor - extract data from response
 api.interceptors.response.use(
-  (response) => response.data,
+  (response) => {
+    // Backend wraps responses in {success: true, data: {...}}
+    if (response.data && typeof response.data === 'object' && 'data' in response.data) {
+      return response.data.data;
+    }
+    return response.data;
+  },
   (error: AxiosError) => {
     return Promise.reject(error);
   }
@@ -44,6 +50,8 @@ api.interceptors.response.use(
 export const authApi = {
   login: (data: LoginDto): Promise<AuthTokens> => api.post<AuthTokens>("/auth/login", data) as unknown as Promise<AuthTokens>,
   register: (data: RegisterDto): Promise<AuthTokens> => api.post<AuthTokens>("/auth/register", data) as unknown as Promise<AuthTokens>,
+  registerStudent: (data: StudentRegistrationDto): Promise<StudentRegistrationResponse> =>
+    api.post<StudentRegistrationResponse>("/auth/register/student", data) as unknown as Promise<StudentRegistrationResponse>,
   refresh: (refreshToken?: string): Promise<AuthTokens> => api.post<AuthTokens>("/auth/refresh", { refreshToken }) as unknown as Promise<AuthTokens>,
   logout: (): Promise<void> => api.post("/auth/logout") as unknown as Promise<void>,
   getProfile: (): Promise<User> => api.get("/auth/profile") as unknown as Promise<User>,
@@ -53,15 +61,44 @@ export const authApi = {
   verifyEmail: (token: string): Promise<void> => api.get(`/auth/verify-email?token=${token}`) as unknown as Promise<void>,
 };
 
+export const searchApi = {
+  search: (query: string): Promise<SearchResponse> =>
+    api.get("/search", { params: { q: query } }) as unknown as Promise<SearchResponse>,
+};
+
 // Users API
 export const usersApi = {
   // General
-  getAll: (params?: { skip?: number; take?: number; role?: UserRole; status?: UserStatus }): Promise<PaginatedResponse<User>> =>
+  getAll: (params?: { skip?: number; take?: number; role?: UserRole; status?: UserStatus; classId?: string; search?: string }): Promise<PaginatedResponse<User>> =>
+    api.get("/users", { params }) as unknown as Promise<PaginatedResponse<User>>,
+  getUsers: (params?: { skip?: number; take?: number; role?: UserRole; status?: UserStatus; classId?: string; search?: string }): Promise<PaginatedResponse<User>> =>
     api.get("/users", { params }) as unknown as Promise<PaginatedResponse<User>>,
   getProfile: (): Promise<User> => api.get("/users/profile") as unknown as Promise<User>,
   updateProfile: (data: Partial<User>): Promise<User> => api.put("/users/profile", data) as unknown as Promise<User>,
   getById: (id: string): Promise<User> => api.get(`/users/${id}`) as unknown as Promise<User>,
   updateStatus: (id: string, status: UserStatus): Promise<User> => api.put(`/users/${id}/status`, { status }) as unknown as Promise<User>,
+  resetPassword: (id: string, newPassword: string): Promise<void> =>
+    api.post(`/users/${id}/reset-password`, { newPassword }) as unknown as Promise<void>,
+  getActivity: (params?: { skip?: number; take?: number }): Promise<{ data: Array<{
+    id: string;
+    action: string;
+    entity: string;
+    createdAt: string;
+    statusCode?: number;
+    user?: { firstName: string; lastName: string; email: string; role: UserRole };
+  }>; total: number }> =>
+    api.get("/users/activity", { params }) as unknown as Promise<{ data: Array<{
+      id: string;
+      action: string;
+      entity: string;
+      createdAt: string;
+      statusCode?: number;
+      user?: { firstName: string; lastName: string; email: string; role: UserRole };
+    }>; total: number }>,
+  getPermissions: (): Promise<Array<{ key: string; description?: string; rolePermissions: Array<{ role: UserRole }> }>> =>
+    api.get("/users/permissions") as unknown as Promise<Array<{ key: string; description?: string; rolePermissions: Array<{ role: UserRole }> }>>,
+  updatePermissions: (role: UserRole, permissionKeys: string[]) =>
+    api.put(`/users/permissions/${role}`, { permissionKeys }) as unknown as Promise<unknown>,
   delete: (id: string): Promise<void> => api.delete(`/users/${id}`) as unknown as Promise<void>,
 
   // Students
@@ -82,6 +119,8 @@ export const usersApi = {
 
   // Parents
   createParent: (data: any): Promise<Parent> => api.post("/users/parents", data) as unknown as Promise<Parent>,
+  createCashier: (data: { email: string; password: string; firstName: string; lastName: string; phone?: string; schoolId?: string }): Promise<User> =>
+    api.post("/users/cashiers", data) as unknown as Promise<User>,
   getParents: (params?: { skip?: number; take?: number; search?: string }): Promise<PaginatedResponse<Parent>> =>
     api.get("/users/parents", { params }) as unknown as Promise<PaginatedResponse<Parent>>,
   getParentById: (id: string): Promise<Parent> => api.get(`/users/parents/${id}`) as unknown as Promise<Parent>,
@@ -132,8 +171,10 @@ export const academicApi = {
 
   // Classes
   createClass: (data: any): Promise<Class> => api.post("/academic/classes", data) as unknown as Promise<Class>,
-  getClasses: (params?: { skip?: number; take?: number; gradeLevelId?: string; academicYearId?: string; search?: string }): Promise<PaginatedResponse<Class>> =>
+  getClasses: (params?: { skip?: number; take?: number; gradeLevelId?: string; academicYearId?: string; search?: string; studentId?: string }): Promise<PaginatedResponse<Class>> =>
     api.get("/academic/classes", { params }) as unknown as Promise<PaginatedResponse<Class>>,
+  getMyClasses: (params?: { skip?: number; take?: number; search?: string }): Promise<PaginatedResponse<Class>> =>
+    api.get("/academic/classes/my", { params }) as unknown as Promise<PaginatedResponse<Class>>,
   getClassById: (id: string): Promise<Class> => api.get(`/academic/classes/${id}`) as unknown as Promise<Class>,
   updateClass: (id: string, data: Partial<Class>): Promise<Class> => api.put(`/academic/classes/${id}`, data) as unknown as Promise<Class>,
   deleteClass: (id: string): Promise<void> => api.delete(`/academic/classes/${id}`) as unknown as Promise<void>,
@@ -142,13 +183,19 @@ export const academicApi = {
   assignSubjectToClass: (classId: string, data: { subjectId: string; teacherId?: string }): Promise<void> =>
     api.post(`/academic/classes/${classId}/subjects`, data) as unknown as Promise<void>,
   getClassSubjects: (classId: string): Promise<any[]> => api.get(`/academic/classes/${classId}/subjects`) as unknown as Promise<any[]>,
+  getSubjectsByClass: (classId: string): Promise<any[]> => api.get(`/academic/classes/${classId}/subjects`) as unknown as Promise<any[]>,
   updateClassSubject: (id: string, data: any): Promise<void> => api.put(`/academic/class-subjects/${id}`, data) as unknown as Promise<void>,
   removeSubjectFromClass: (classId: string, subjectId: string): Promise<void> =>
     api.delete(`/academic/classes/${classId}/subjects/${subjectId}`) as unknown as Promise<void>,
 
   // Timetable
   createTimetableEntry: (classId: string, data: any): Promise<TimetableEntry> => api.post(`/academic/classes/${classId}/timetable`, data) as unknown as Promise<TimetableEntry>,
-  getTimetable: (classId: string): Promise<TimetableEntry[]> => api.get(`/academic/classes/${classId}/timetable`) as unknown as Promise<TimetableEntry[]>,
+  getTimetable: (classIdOrParams: string | { classId?: string; weekStart?: string; weekEnd?: string }): Promise<TimetableEntry[] & { data?: TimetableEntry[] }> => {
+    const classId = typeof classIdOrParams === "string" ? classIdOrParams : classIdOrParams.classId;
+    return api.get(`/academic/classes/${classId}/timetable`, {
+      params: typeof classIdOrParams === "string" ? undefined : classIdOrParams,
+    }) as unknown as Promise<TimetableEntry[] & { data?: TimetableEntry[] }>;
+  },
   getTeacherTimetable: (teacherId: string): Promise<TimetableEntry[]> => api.get(`/academic/teachers/${teacherId}/timetable`) as unknown as Promise<TimetableEntry[]>,
   updateTimetableEntry: (id: string, data: Partial<TimetableEntry>): Promise<TimetableEntry> => api.put(`/academic/timetable/${id}`, data) as unknown as Promise<TimetableEntry>,
   deleteTimetableEntry: (id: string): Promise<void> => api.delete(`/academic/timetable/${id}`) as unknown as Promise<void>,
@@ -164,7 +211,7 @@ export const communicationApi = {
   // Messages
   sendMessage: (data: { recipientId: string; subject?: string; body: string; parentId?: string; attachments?: any[] }): Promise<Message> =>
     api.post("/communication/messages", data) as unknown as Promise<Message>,
-  getMessages: (params?: { skip?: number; take?: number; role?: "sent" | "received" | "all"; isRead?: boolean; search?: string }): Promise<PaginatedResponse<Message>> =>
+  getMessages: (params?: { skip?: number; take?: number; role?: "sent" | "received" | "all"; isRead?: boolean; status?: string; classId?: string; search?: string }): Promise<PaginatedResponse<Message>> =>
     api.get("/communication/messages", { params }) as unknown as Promise<PaginatedResponse<Message>>,
   getUnreadMessageCount: (): Promise<number> => api.get("/communication/messages/unread-count") as unknown as Promise<number>,
   getMessageById: (id: string): Promise<Message> => api.get(`/communication/messages/${id}`) as unknown as Promise<Message>,
@@ -172,6 +219,9 @@ export const communicationApi = {
   markMessageAsRead: (id: string): Promise<void> => api.put(`/communication/messages/${id}/read`) as unknown as Promise<void>,
   markMessageAsUnread: (id: string): Promise<void> => api.put(`/communication/messages/${id}/unread`) as unknown as Promise<void>,
   deleteMessage: (id: string): Promise<void> => api.delete(`/communication/messages/${id}`) as unknown as Promise<void>,
+  createMessage: (data: { recipientId: string; subject?: string; body: string }): Promise<Message> => api.post("/communication/messages", data) as unknown as Promise<Message>,
+  updateMessage: (id: string, data: Partial<Message>): Promise<Message> => api.put(`/communication/messages/${id}`, data) as unknown as Promise<Message>,
+  markMessageRead: (id: string): Promise<void> => api.put(`/communication/messages/${id}/read`) as unknown as Promise<void>,
 
   // Announcements
   createAnnouncement: (data: { title: string; body: string; targetRoles: UserRole[]; targetClassId?: string; targetGradeLevelId?: string; expiresAt?: string; attachments?: any[] }): Promise<Announcement> =>
@@ -191,12 +241,14 @@ export const communicationApi = {
     api.post("/communication/notifications", data) as unknown as Promise<Notification>,
   sendNotification: (data: { userId: string; type: string; title: string; body: string; data?: any; channels?: string[]; sendEmail?: boolean; sendSms?: boolean; sendPush?: boolean }): Promise<void> =>
     api.post("/communication/notifications/send", data) as unknown as Promise<void>,
-  getNotifications: (params?: { skip?: number; take?: number; isRead?: boolean; type?: string; dateFrom?: string; dateTo?: string }): Promise<PaginatedResponse<Notification>> =>
+  getNotifications: (params?: { skip?: number; take?: number; isRead?: boolean; type?: string; search?: string; dateFrom?: string; dateTo?: string }): Promise<PaginatedResponse<Notification>> =>
     api.get("/communication/notifications", { params }) as unknown as Promise<PaginatedResponse<Notification>>,
   getUnreadNotificationCount: (): Promise<number> => api.get("/communication/notifications/unread-count") as unknown as Promise<number>,
   getNotificationById: (id: string): Promise<Notification> => api.get(`/communication/notifications/${id}`) as unknown as Promise<Notification>,
   markNotificationAsRead: (id: string): Promise<void> => api.put(`/communication/notifications/${id}/read`) as unknown as Promise<void>,
+  markNotificationRead: (id: string): Promise<void> => api.put(`/communication/notifications/${id}/read`) as unknown as Promise<void>,
   markAllNotificationsAsRead: (): Promise<void> => api.put("/communication/notifications/read-all") as unknown as Promise<void>,
+  markAllNotificationsRead: (): Promise<void> => api.put("/communication/notifications/read-all") as unknown as Promise<void>,
   deleteNotification: (id: string): Promise<void> => api.delete(`/communication/notifications/${id}`) as unknown as Promise<void>,
 };
 
@@ -211,13 +263,13 @@ export const reportsApi = {
   getParentDashboard: (): Promise<ParentDashboard> => api.get("/reports/dashboard/parent") as unknown as Promise<ParentDashboard>,
 
   // Attendance Reports
-  getAttendanceSummary: (params?: { schoolId?: string; academicYearId?: string; classId?: string; dateFrom?: string; dateTo?: string }): Promise<AttendanceSummary> =>
+  getAttendanceSummary: (params?: { schoolId?: string; academicYearId?: string; classId?: string; studentId?: string; dateFrom?: string; dateTo?: string }): Promise<AttendanceSummary> =>
     api.get("/reports/attendance/summary", { params }) as unknown as Promise<AttendanceSummary>,
   getStudentAttendanceReport: (studentId: string, params?: { academicYearId?: string; dateFrom?: string; dateTo?: string }): Promise<StudentAttendanceReport> =>
     api.get(`/reports/attendance/student/${studentId}`, { params }) as unknown as Promise<StudentAttendanceReport>,
   getClassAttendanceReport: (classId: string, params?: { dateFrom?: string; dateTo?: string; subjectId?: string }): Promise<ClassAttendanceReport> =>
     api.get(`/reports/attendance/class/${classId}`, { params }) as unknown as Promise<ClassAttendanceReport>,
-  getAttendanceTrends: (params?: { schoolId?: string; academicYearId?: string; classId?: string; dateFrom?: string; dateTo?: string; groupBy?: "day" | "week" | "month" }): Promise<AttendanceTrends> =>
+  getAttendanceTrends: (params?: { schoolId?: string; academicYearId?: string; classId?: string; studentId?: string; dateFrom?: string; dateTo?: string; groupBy?: "day" | "week" | "month" }): Promise<AttendanceTrends> =>
     api.get("/reports/attendance/trends", { params }) as unknown as Promise<AttendanceTrends>,
 
   // Grade Reports
@@ -251,24 +303,30 @@ export const reportsApi = {
     api.get("/reports/export/enrollment", { params, responseType: "blob" }) as unknown as Promise<Blob>,
 };
 
-// Attendance API
+// Attendance API - Fixed to match backend endpoints
 export const attendanceApi = {
   // Sessions
   createAttendanceSession: (data: any): Promise<any> => api.post("/attendance/sessions", data) as unknown as Promise<any>,
   getAttendanceSessions: (params?: { skip?: number; take?: number; classId?: string; teacherId?: string; subjectId?: string; date?: string; dateFrom?: string; dateTo?: string; status?: string }): Promise<any> =>
     api.get("/attendance/sessions", { params }) as unknown as Promise<any>,
+  getSessions: (params?: { skip?: number; take?: number; classId?: string; teacherId?: string; subjectId?: string; date?: string; dateFrom?: string; dateTo?: string; status?: string }): Promise<any> =>
+    api.get("/attendance/sessions", { params }) as unknown as Promise<any>,
+  createSession: (data: any): Promise<any> => api.post("/attendance/sessions", data) as unknown as Promise<any>,
   getMyAttendanceSessions: (params?: { date?: string; dateFrom?: string; dateTo?: string; status?: string }): Promise<any> =>
     api.get("/attendance/sessions/my", { params }) as unknown as Promise<any>,
   getMyTodaysSessions: (): Promise<any> => api.get("/attendance/sessions/today") as unknown as Promise<any>,
   getAttendanceSessionById: (id: string): Promise<any> => api.get(`/attendance/sessions/${id}`) as unknown as Promise<any>,
   updateAttendanceSession: (id: string, data: any): Promise<any> => api.put(`/attendance/sessions/${id}`, data) as unknown as Promise<any>,
+  updateSession: (id: string, data: any): Promise<any> => api.put(`/attendance/sessions/${id}`, data) as unknown as Promise<any>,
   closeAttendanceSession: (id: string): Promise<any> => api.put(`/attendance/sessions/${id}/close`) as unknown as Promise<any>,
   cancelAttendanceSession: (id: string): Promise<any> => api.put(`/attendance/sessions/${id}/cancel`) as unknown as Promise<any>,
   deleteAttendanceSession: (id: string): Promise<void> => api.delete(`/attendance/sessions/${id}`) as unknown as Promise<void>,
+  deleteSession: (id: string): Promise<void> => api.delete(`/attendance/sessions/${id}`) as unknown as Promise<void>,
 
   // Records
   recordAttendance: (data: any): Promise<any> => api.post("/attendance/records", data) as unknown as Promise<any>,
   bulkRecordAttendance: (data: any): Promise<any> => api.post("/attendance/records/bulk", data) as unknown as Promise<any>,
+  bulkCreate: (data: any): Promise<any> => api.post("/attendance/records/bulk", data) as unknown as Promise<any>,
   getAttendances: (params?: { skip?: number; take?: number; studentId?: string; classId?: string; subjectId?: string; sessionId?: string; date?: string; dateFrom?: string; dateTo?: string; status?: string }): Promise<any> =>
     api.get("/attendance/records", { params }) as unknown as Promise<any>,
   getAttendanceById: (id: string): Promise<any> => api.get(`/attendance/records/${id}`) as unknown as Promise<any>,
@@ -277,6 +335,12 @@ export const attendanceApi = {
 
   // Class today
   getTodaysAttendance: (classId: string, subjectId?: string): Promise<any> => api.get(`/attendance/classes/${classId}/today`, { params: { subjectId } }) as unknown as Promise<any>,
+  getByDate: (params?: { classId?: string; subjectId?: string; date?: string } | string, dateOrParams?: string | { classId?: string; subjectId?: string }): Promise<any> => {
+    const query = typeof params === "string"
+      ? { ...(typeof dateOrParams === "object" ? dateOrParams : {}), date: params }
+      : params;
+    return api.get("/attendance/records", { params: query }) as unknown as Promise<any>;
+  },
 
   // Reports
   getClassAttendanceReport: (classId: string, params?: { dateFrom?: string; dateTo?: string; subjectId?: string }): Promise<any> =>
@@ -291,12 +355,67 @@ export const attendanceApi = {
 
 // Grades API
 export const gradesApi = {
-  // Add grades endpoints when needed
+  // Assessment Types
+  getAssessmentTypes: (params?: { skip?: number; take?: number }): Promise<PaginatedResponse<AssessmentType>> =>
+    api.get("/grades/assessment-types", { params }) as unknown as Promise<PaginatedResponse<AssessmentType>>,
+  getAssessmentTypeById: (id: string): Promise<AssessmentType> => api.get(`/grades/assessment-types/${id}`) as unknown as Promise<AssessmentType>,
+  createAssessmentType: (data: any): Promise<AssessmentType> => api.post("/grades/assessment-types", data) as unknown as Promise<AssessmentType>,
+  updateAssessmentType: (id: string, data: Partial<AssessmentType>): Promise<AssessmentType> => api.put(`/grades/assessment-types/${id}`, data) as unknown as Promise<AssessmentType>,
+  deleteAssessmentType: (id: string): Promise<void> => api.delete(`/grades/assessment-types/${id}`) as unknown as Promise<void>,
+
+  // Assessments
+  getAssessments: (params?: { skip?: number; take?: number; classSubjectId?: string; classId?: string; subjectId?: string; typeId?: string; isPublished?: boolean }): Promise<PaginatedResponse<Assessment>> =>
+    api.get("/grades/assessments", { params }) as unknown as Promise<PaginatedResponse<Assessment>>,
+  getAssessmentById: (id: string): Promise<Assessment> => api.get(`/grades/assessments/${id}`) as unknown as Promise<Assessment>,
+  createAssessment: (data: any): Promise<Assessment> => api.post("/grades/assessments", data) as unknown as Promise<Assessment>,
+  updateAssessment: (id: string, data: Partial<Assessment>): Promise<Assessment> => api.put(`/grades/assessments/${id}`, data) as unknown as Promise<Assessment>,
+  deleteAssessment: (id: string): Promise<void> => api.delete(`/grades/assessments/${id}`) as unknown as Promise<void>,
+  publishAssessment: (id: string): Promise<void> => api.put(`/grades/assessments/${id}/publish`) as unknown as Promise<void>,
+
+  // Grades
+  getGradesByAssessment: (assessmentId: string, params?: { skip?: number; take?: number }): Promise<PaginatedResponse<Grade>> =>
+    api.get(`/grades/assessments/${assessmentId}/grades`, { params }) as unknown as Promise<PaginatedResponse<Grade>>,
+  getGrades: (params?: { studentId?: string; assessmentId?: string; assessmentType?: string; classSubjectId?: string; subjectId?: string; search?: string; skip?: number; take?: number }): Promise<PaginatedResponse<Grade>> =>
+    api.get("/grades/grades", { params }) as unknown as Promise<PaginatedResponse<Grade>>,
+  getGradeSummary: (params?: { studentId?: string; classId?: string; subjectId?: string; academicYearId?: string }): Promise<GradeSummary> =>
+    api.get("/reports/grades/summary", { params }) as unknown as Promise<GradeSummary>,
+  getSubjectsForStudent: (studentId: string): Promise<Subject[] & { data?: Subject[] }> =>
+    api.get(`/grades/students/${studentId}/subjects`) as unknown as Promise<Subject[] & { data?: Subject[] }>,
+  createGrade: (data: any): Promise<Grade> => api.post("/grades/grades", data) as unknown as Promise<Grade>,
+  bulkCreateGrades: (grades: any[] | { assessmentId: string; grades?: any[]; records?: any[] }): Promise<void> => api.post("/grades/grades/bulk", grades) as unknown as Promise<void>,
+  updateGrade: (id: string, data: Partial<Grade>): Promise<Grade> => api.put(`/grades/grades/${id}`, data) as unknown as Promise<Grade>,
+  deleteGrade: (id: string): Promise<void> => api.delete(`/grades/grades/${id}`) as unknown as Promise<void>,
+  publishGrade: (id: string): Promise<void> => api.put(`/grades/grades/${id}/publish`) as unknown as Promise<void>,
 };
 
 // Finance API
 export const financeApi = {
-  // Add finance endpoints when needed
+  // Fee Structures
+  getFeeStructures: (params?: { skip?: number; take?: number; academicYearId?: string; gradeLevelId?: string; isActive?: boolean; search?: string }): Promise<PaginatedResponse<FeeStructure>> =>
+    api.get("/finance/fee-structures", { params }) as unknown as Promise<PaginatedResponse<FeeStructure>>,
+  getFeeStructureById: (id: string): Promise<FeeStructure> => api.get(`/finance/fee-structures/${id}`) as unknown as Promise<FeeStructure>,
+  createFeeStructure: (data: any): Promise<FeeStructure> => api.post("/finance/fee-structures", data) as unknown as Promise<FeeStructure>,
+  updateFeeStructure: (id: string, data: Partial<FeeStructure>): Promise<FeeStructure> => api.put(`/finance/fee-structures/${id}`, data) as unknown as Promise<FeeStructure>,
+  deleteFeeStructure: (id: string): Promise<void> => api.delete(`/finance/fee-structures/${id}`) as unknown as Promise<void>,
+
+  // Invoices
+  getInvoices: (params?: { skip?: number; take?: number; studentId?: string; feeStructureId?: string; academicYearId?: string; status?: string; search?: string }): Promise<PaginatedResponse<Invoice>> =>
+    api.get("/finance/invoices", { params }) as unknown as Promise<PaginatedResponse<Invoice>>,
+  getInvoiceById: (id: string): Promise<Invoice> => api.get(`/finance/invoices/${id}`) as unknown as Promise<Invoice>,
+  generateInvoices: (data: { academicYearId: string; feeStructureId?: string; classId?: string; studentIds?: string[] }): Promise<void> =>
+    api.post("/finance/invoices/generate", data) as unknown as Promise<void>,
+  updateInvoice: (id: string, data: Partial<Invoice>): Promise<Invoice> => api.put(`/finance/invoices/${id}`, data) as unknown as Promise<Invoice>,
+  deleteInvoice: (id: string): Promise<void> => api.delete(`/finance/invoices/${id}`) as unknown as Promise<void>,
+  sendInvoiceReminder: (id: string): Promise<void> => api.post(`/finance/invoices/${id}/remind`) as unknown as Promise<void>,
+
+  // Payments
+  getPayments: (params?: { skip?: number; take?: number; invoiceId?: string; studentId?: string; paidAtFrom?: string; paidAtTo?: string; method?: string; search?: string }): Promise<PaginatedResponse<Payment>> =>
+    api.get("/finance/payments", { params }) as unknown as Promise<PaginatedResponse<Payment>>,
+  getPaymentById: (id: string): Promise<Payment> => api.get(`/finance/payments/${id}`) as unknown as Promise<Payment>,
+  createPayment: (data: { invoiceId: string; amount: number; method: string; reference?: string; notes?: string }): Promise<Payment> => api.post("/finance/payments", data) as unknown as Promise<Payment>,
+  updatePayment: (id: string, data: Partial<Payment>): Promise<Payment> => api.put(`/finance/payments/${id}`, data) as unknown as Promise<Payment>,
+  deletePayment: (id: string): Promise<void> => api.delete(`/finance/payments/${id}`) as unknown as Promise<void>,
+  generateReceipt: (id: string): Promise<Blob> => api.get(`/finance/payments/${id}/receipt`, { responseType: "blob" }) as unknown as Promise<Blob>,
 };
 
 // Pagination type

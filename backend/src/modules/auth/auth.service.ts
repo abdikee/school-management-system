@@ -7,9 +7,11 @@ import {
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
+import { createHash } from 'crypto';
 import { PrismaService } from '../../prisma/prisma.service';
 import { ConfigService } from '@nestjs/config';
 import { UserRole, UserStatus, Prisma } from '@prisma/client';
+import { StudentRegistrationDto } from './dto/student-registration.dto';
 
 export interface TokenPayload {
   sub: string;
@@ -38,7 +40,11 @@ export class AuthService {
     private configService: ConfigService,
   ) {}
 
-  async validateUser(email: string, password: string): Promise<any> {
+  async validateUser(
+    email: string,
+    password: string,
+    metadata: { ipAddress?: string; userAgent?: string } = {},
+  ): Promise<any> {
     const user = await this.prisma.user.findUnique({
       where: { email },
       include: {
@@ -49,26 +55,89 @@ export class AuthService {
     });
 
     if (!user) {
+      await this.recordLoginAttempt(email, false, 'USER_NOT_FOUND', metadata);
       return null;
     }
 
+    if (user.lockedUntil && user.lockedUntil > new Date()) {
+      await this.recordLoginAttempt(email, false, 'ACCOUNT_LOCKED', {
+        ...metadata,
+        userId: user.id,
+      });
+      throw new UnauthorizedException('Account is temporarily locked. Try again later.');
+    }
+
     if (user.status !== UserStatus.ACTIVE) {
+      await this.recordLoginAttempt(email, false, 'ACCOUNT_NOT_ACTIVE', {
+        ...metadata,
+        userId: user.id,
+      });
       throw new UnauthorizedException('Account is not active');
     }
 
     const isPasswordValid = await bcrypt.compare(password, user.passwordHash);
     if (!isPasswordValid) {
+      await this.registerFailedLogin(user.id, email, metadata);
       return null;
     }
 
     // Update last login
     await this.prisma.user.update({
       where: { id: user.id },
-      data: { lastLoginAt: new Date() },
+      data: {
+        lastLoginAt: new Date(),
+        lastActivityAt: new Date(),
+        failedLoginCount: 0,
+        lockedUntil: null,
+      },
     });
+    await this.recordLoginAttempt(email, true, undefined, { ...metadata, userId: user.id });
 
     const { passwordHash, ...result } = user;
     return result;
+  }
+
+  private async registerFailedLogin(
+    userId: string,
+    email: string,
+    metadata: { ipAddress?: string; userAgent?: string },
+  ): Promise<void> {
+    const maxAttempts = Number(this.configService.get('auth.maxFailedLoginAttempts') || 5);
+    const lockMinutes = Number(this.configService.get('auth.lockoutMinutes') || 15);
+    const user = await this.prisma.user.update({
+      where: { id: userId },
+      data: { failedLoginCount: { increment: 1 } },
+      select: { failedLoginCount: true },
+    });
+    const shouldLock = user.failedLoginCount >= maxAttempts;
+    if (shouldLock) {
+      await this.prisma.user.update({
+        where: { id: userId },
+        data: { lockedUntil: new Date(Date.now() + lockMinutes * 60 * 1000) },
+      });
+    }
+    await this.recordLoginAttempt(email, false, shouldLock ? 'ACCOUNT_LOCKED' : 'INVALID_PASSWORD', {
+      ...metadata,
+      userId,
+    });
+  }
+
+  private async recordLoginAttempt(
+    email: string,
+    successful: boolean,
+    failureReason?: string,
+    metadata: { ipAddress?: string; userAgent?: string; userId?: string } = {},
+  ): Promise<void> {
+    await this.prisma.loginAttempt.create({
+      data: {
+        email,
+        userId: metadata.userId,
+        successful,
+        failureReason,
+        ipAddress: metadata.ipAddress,
+        userAgent: metadata.userAgent,
+      },
+    });
   }
 
   async login(user: any): Promise<AuthTokens> {
@@ -137,6 +206,59 @@ export class AuthService {
     });
 
     return this.login(user);
+  }
+
+  async registerStudent(data: StudentRegistrationDto) {
+    const existingUser = await this.prisma.user.findUnique({
+      where: { email: data.email },
+    });
+
+    if (existingUser) {
+      throw new ConflictException('An account with this email already exists');
+    }
+
+    const passwordHash = await bcrypt.hash(data.password, 12);
+    const studentId = await this.generateStudentId();
+
+    await this.prisma.$transaction(async (transaction) => {
+      const user = await transaction.user.create({
+        data: {
+          email: data.email,
+          passwordHash,
+          firstName: data.firstName,
+          lastName: data.lastName,
+          phone: data.phone,
+          role: UserRole.STUDENT,
+          status: UserStatus.PENDING,
+          emailVerified: false,
+        },
+      });
+
+      await transaction.student.create({
+        data: {
+          userId: user.id,
+          studentId,
+          dateOfBirth: new Date(data.dateOfBirth),
+          gender: data.gender,
+          status: UserStatus.PENDING,
+        },
+      });
+    });
+
+    return {
+      message: 'Registration submitted for school approval',
+      studentId,
+    };
+  }
+
+  private async generateStudentId() {
+    for (let attempt = 0; attempt < 5; attempt += 1) {
+      const candidate = `STU-${new Date().getFullYear()}-${Math.floor(100000 + Math.random() * 900000)}`;
+      const existing = await this.prisma.student.findUnique({ where: { studentId: candidate } });
+      if (!existing) return candidate;
+    }
+
+    throw new ConflictException('Unable to generate a student ID. Please try again.');
   }
 
   async refreshTokens(refreshToken: string): Promise<AuthTokens> {
@@ -221,38 +343,75 @@ export class AuthService {
       return;
     }
 
-    // Generate reset token (in production, send via email)
-    const resetToken = this.jwtService.sign(
-      { sub: user.id, type: 'password-reset' },
-      { expiresIn: '1h' },
-    );
-
-    // Store reset token (in production, save to DB with expiry)
-    // For now, we'll just log it (in production, send email)
-    console.log(`Password reset token for ${email}: ${resetToken}`);
+    await this.prisma.auditLog.create({
+      data: {
+        userId: user.id,
+        action: 'PASSWORD_RESET_REQUESTED',
+        entity: 'User',
+        entityId: user.id,
+        newData: { status: 'delivery_not_configured' },
+      },
+    });
   }
 
   async resetPassword(token: string, newPassword: string): Promise<void> {
+    let payload: { sub?: string; type?: string };
     try {
-      const payload = this.jwtService.verify(token);
-      if (payload.type !== 'password-reset') {
-        throw new UnauthorizedException('Invalid reset token');
-      }
-
-      const passwordHash = await bcrypt.hash(newPassword, 12);
-      await this.prisma.user.update({
-        where: { id: payload.sub },
-        data: { passwordHash },
-      });
-
-      // Revoke all refresh tokens
-      await this.prisma.refreshToken.updateMany({
-        where: { userId: payload.sub, revokedAt: null },
-        data: { revokedAt: new Date() },
-      });
+      payload = this.jwtService.verify(token);
     } catch (error) {
       throw new UnauthorizedException('Invalid or expired reset token');
     }
+
+    if (payload.type !== 'password-reset' || !payload.sub) {
+      throw new UnauthorizedException('Invalid reset token');
+    }
+
+    const passwordHash = await bcrypt.hash(newPassword, 12);
+    await this.prisma.user.update({
+      where: { id: payload.sub },
+      data: { passwordHash },
+    });
+
+    await this.prisma.refreshToken.updateMany({
+      where: { userId: payload.sub, revokedAt: null },
+      data: { revokedAt: new Date() },
+    });
+    await this.prisma.auditLog.create({
+      data: {
+        userId: payload.sub,
+        action: 'PASSWORD_RESET',
+        entity: 'User',
+        entityId: payload.sub,
+        newData: { status: 'completed' },
+      },
+    });
+  }
+
+  async acceptInvitation(token: string, newPassword: string): Promise<void> {
+    const tokenHash = createHash('sha256').update(token).digest('hex');
+    const invitation = await this.prisma.invitation.findUnique({
+      where: { tokenHash },
+    });
+
+    if (!invitation || invitation.acceptedAt || invitation.expiresAt < new Date()) {
+      throw new UnauthorizedException('Invalid or expired invitation');
+    }
+
+    const passwordHash = await bcrypt.hash(newPassword, 12);
+    await this.prisma.$transaction([
+      this.prisma.user.update({
+        where: { id: invitation.userId },
+        data: {
+          passwordHash,
+          status: UserStatus.ACTIVE,
+          emailVerified: true,
+        },
+      }),
+      this.prisma.invitation.update({
+        where: { id: invitation.id },
+        data: { acceptedAt: new Date() },
+      }),
+    ]);
   }
 
   async verifyEmail(token: string): Promise<void> {

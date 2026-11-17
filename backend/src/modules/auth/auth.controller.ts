@@ -19,10 +19,13 @@ import { RefreshDto } from './dto/refresh.dto';
 import { ChangePasswordDto } from './dto/change-password.dto';
 import { ForgotPasswordDto } from './dto/forgot-password.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
+import { StudentRegistrationDto } from './dto/student-registration.dto';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { Public } from '../../common/decorators/public.decorator';
-import { User } from '@prisma/client';
+import { Roles } from '../../common/decorators/roles.decorator';
+import { User, UserRole } from '@prisma/client';
+import { Throttle } from '@nestjs/throttler';
 
 @ApiTags('auth')
 @Controller('auth')
@@ -31,12 +34,20 @@ export class AuthController {
 
   @Public()
   @Post('login')
+  @Throttle({ default: { limit: 10, ttl: 60_000 } })
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'User login' })
   @ApiResponse({ status: 200, description: 'Login successful' })
   @ApiResponse({ status: 401, description: 'Invalid credentials' })
-  async login(@Body() loginDto: LoginDto, @Res({ passthrough: true }) res: Response): Promise<AuthTokens> {
-    const user = await this.authService.validateUser(loginDto.email, loginDto.password);
+  async login(
+    @Body() loginDto: LoginDto,
+    @Req() req: Request,
+    @Res({ passthrough: true }) res: Response,
+  ): Promise<AuthTokens> {
+    const user = await this.authService.validateUser(loginDto.email, loginDto.password, {
+      ipAddress: req.ip,
+      userAgent: req.get('user-agent'),
+    });
     if (!user) {
       throw new UnauthorizedException('Invalid email or password');
     }
@@ -53,18 +64,31 @@ export class AuthController {
     return tokens;
   }
 
-  @Public()
   @Post('register')
+  @UseGuards(JwtAuthGuard)
+  @Roles(UserRole.ADMIN)
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({ summary: 'Register new user (admin only in production)' })
   @ApiResponse({ status: 201, description: 'Registration successful' })
   @ApiResponse({ status: 409, description: 'Email already exists' })
   async register(@Body() registerDto: RegisterDto): Promise<AuthTokens> {
+    if (registerDto.role !== 'STUDENT') {
+      throw new BadRequestException('Use the student registration portal to create a student account');
+    }
     return this.authService.register(registerDto);
   }
 
   @Public()
+  @Post('register/student')
+  @HttpCode(HttpStatus.CREATED)
+  @ApiOperation({ summary: 'Submit a student registration application' })
+  async registerStudent(@Body() registrationDto: StudentRegistrationDto) {
+    return this.authService.registerStudent(registrationDto);
+  }
+
+  @Public()
   @Post('refresh')
+  @Throttle({ default: { limit: 20, ttl: 60_000 } })
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Refresh access token' })
   @ApiResponse({ status: 200, description: 'Token refreshed' })
@@ -143,12 +167,13 @@ export class AuthController {
 
   @Public()
   @Post('forgot-password')
+  @Throttle({ default: { limit: 5, ttl: 60_000 } })
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Request password reset' })
   @ApiResponse({ status: 200, description: 'Reset email sent (if account exists)' })
   async forgotPassword(@Body() forgotPasswordDto: ForgotPasswordDto): Promise<{ message: string }> {
     await this.authService.requestPasswordReset(forgotPasswordDto.email);
-    return { message: 'If the email exists, a reset link has been sent' };
+    return { message: 'If the email exists, reset instructions will be sent when delivery is configured' };
   }
 
   @Public()
@@ -160,6 +185,22 @@ export class AuthController {
   async resetPassword(@Body() resetPasswordDto: ResetPasswordDto): Promise<{ message: string }> {
     await this.authService.resetPassword(resetPasswordDto.token, resetPasswordDto.newPassword);
     return { message: 'Password has been reset' };
+  }
+
+  @Public()
+  @Post('accept-invitation')
+  @Throttle({ default: { limit: 5, ttl: 60_000 } })
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Accept an account invitation and set a password' })
+  async acceptInvitation(
+    @Body('token') token: string,
+    @Body('newPassword') newPassword: string,
+  ): Promise<{ message: string }> {
+    if (!token || !newPassword || newPassword.length < 8) {
+      throw new BadRequestException('Invitation token and a password of at least 8 characters are required');
+    }
+    await this.authService.acceptInvitation(token, newPassword);
+    return { message: 'Invitation accepted. You can now sign in.' };
   }
 
   @Public()

@@ -653,6 +653,19 @@ export class CommunicationService {
   }
 
   async sendNotification(data: SendNotificationInput) {
+    const requestedExternalChannels = [
+      ...(data.sendEmail ? [NotificationChannel.EMAIL] : []),
+      ...(data.sendSms ? [NotificationChannel.SMS] : []),
+      ...(data.sendPush ? [NotificationChannel.PUSH] : []),
+      ...(data.channels || []).filter((channel) => channel !== NotificationChannel.IN_APP),
+    ];
+
+    if (requestedExternalChannels.length > 0) {
+      throw new BadRequestException(
+        'External notification delivery is not configured. Only in-app notifications are available.',
+      );
+    }
+
     // Create in-app notification
     const notification = await this.createNotification({
       userId: data.userId,
@@ -663,19 +676,9 @@ export class CommunicationService {
       channels: data.channels || [NotificationChannel.IN_APP],
     });
 
-    // TODO: Implement email/SMS/push sending based on channels
-    // This would integrate with email service (nodemailer), SMS provider (Twilio), push service (Firebase)
-    // For now, we'll just mark as sent for in-app
-    const sentChannels: NotificationChannel[] = [NotificationChannel.IN_APP];
-
-    // Simulate sending other channels
-    if (data.sendEmail) sentChannels.push(NotificationChannel.EMAIL);
-    if (data.sendSms) sentChannels.push(NotificationChannel.SMS);
-    if (data.sendPush) sentChannels.push(NotificationChannel.PUSH);
-
     return this.prisma.notification.update({
       where: { id: notification.id },
-      data: { sentAt: new Date(), channels: sentChannels },
+      data: { sentAt: new Date(), channels: [NotificationChannel.IN_APP] },
       include: {
         user: { select: { id: true, firstName: true, lastName: true, email: true, role: true } },
       },

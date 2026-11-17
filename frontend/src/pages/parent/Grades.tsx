@@ -270,7 +270,7 @@ export function ParentGrades() {
                       <TableCell className="font-medium">{grade.assessment?.title}</TableCell>
                       <TableCell>{grade.assessment?.subject?.name}</TableCell>
                       <TableCell>
-                        <Badge variant="secondary">{grade.assessment?.type}</Badge>
+                        <Badge variant="secondary">{grade.assessment?.type?.name}</Badge>
                       </TableCell>
                       <TableCell>{grade.score}/{grade.assessment?.maxScore}</TableCell>
                       <TableCell>{grade.assessment?.maxScore}</TableCell>

@@ -501,7 +501,7 @@ export function TeacherReports() {
                 <div className="text-3xl font-bold text-green-600">
                   {(() => {
                     const dist = gradeDist;
-                    const total = Object.values(dist).reduce((a, b) => a + b, 0);
+                    const total = Object.values(dist as Record<string, number>).reduce((a, b) => a + b, 0);
                     const pass = (dist["60-69"] || 0) + (dist["70-79"] || 0) + (dist["80-89"] || 0) + (dist["90-100"] || 0);
                     return total > 0 ? ((pass / total) * 100).toFixed(1) : 0;
                   })()}%

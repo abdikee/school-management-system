@@ -7,6 +7,7 @@ import {
 import { PrismaService } from '../../prisma/prisma.service';
 import { Prisma, UserRole, UserStatus, Gender } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
+import { createHash, randomBytes } from 'crypto';
 
 interface CreateUserInput {
   email: string;
@@ -39,6 +40,9 @@ interface CreateParentInput extends CreateUserInput {
   occupation?: string;
   phone?: string;
   address?: string;
+  studentId?: string;
+  relationship?: string;
+  isPrimary?: boolean;
 }
 
 @Injectable()
@@ -129,7 +133,151 @@ export class UsersService {
   }
 
   async updateStatus(id: string, status: UserStatus) {
-    return this.update(id, { status });
+    const user = await this.update(id, { status });
+    if (status !== UserStatus.ACTIVE) {
+      await this.prisma.refreshToken.updateMany({
+        where: { userId: id, revokedAt: null },
+        data: { revokedAt: new Date() },
+      });
+    }
+    return user;
+  }
+
+  async activate(id: string) {
+    const user = await this.prisma.user.findUnique({ where: { id } });
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+
+    return this.update(id, {
+      status: UserStatus.ACTIVE,
+      emailVerified: true,
+    });
+  }
+
+  async createInvitation(userId: string): Promise<{ invitationToken: string; expiresAt: Date }> {
+    const user = await this.prisma.user.findUnique({ where: { id: userId } });
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+
+    const invitationToken = randomBytes(32).toString('hex');
+    const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
+    const tokenHash = createHash('sha256').update(invitationToken).digest('hex');
+
+    await this.prisma.invitation.deleteMany({ where: { userId, acceptedAt: null } });
+    await this.prisma.invitation.create({
+      data: { userId, tokenHash, expiresAt },
+    });
+    await this.prisma.user.update({
+      where: { id: userId },
+      data: { status: UserStatus.PENDING, emailVerified: false },
+    });
+
+    return { invitationToken, expiresAt };
+  }
+
+  async createCashier(data: {
+    email: string;
+    password: string;
+    firstName: string;
+    lastName: string;
+    phone?: string;
+    schoolId?: string;
+  }) {
+    const existing = await this.prisma.user.findUnique({ where: { email: data.email } });
+    if (existing) throw new ConflictException('User with this email already exists');
+
+    const passwordHash = await bcrypt.hash(data.password, 10);
+    return this.prisma.user.create({
+      data: {
+        email: data.email,
+        passwordHash,
+        firstName: data.firstName,
+        lastName: data.lastName,
+        phone: data.phone,
+        schoolId: data.schoolId,
+        role: UserRole.CASHIER,
+        status: UserStatus.ACTIVE,
+      },
+    });
+  }
+
+  async resetPassword(userId: string, newPassword: string) {
+    const user = await this.prisma.user.findUnique({ where: { id: userId } });
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+
+    const passwordHash = await bcrypt.hash(newPassword, 12);
+    await this.prisma.user.update({
+      where: { id: userId },
+      data: { passwordHash },
+    });
+
+    await this.prisma.refreshToken.updateMany({
+      where: { userId, revokedAt: null },
+      data: { revokedAt: new Date() },
+    });
+    await this.prisma.auditLog.create({
+      data: {
+        userId,
+        action: 'ADMIN_PASSWORD_RESET',
+        entity: 'User',
+        entityId: userId,
+        newData: { status: 'completed' },
+      },
+    });
+  }
+
+  async getActivity(params: { skip?: number; take?: number }) {
+    const skip = params.skip ?? 0;
+    const take = Math.min(params.take ?? 50, 100);
+    const [data, total] = await Promise.all([
+      this.prisma.auditLog.findMany({
+        skip,
+        take,
+        orderBy: { createdAt: 'desc' },
+        include: {
+          user: {
+            select: { id: true, firstName: true, lastName: true, email: true, role: true },
+          },
+        },
+      }),
+      this.prisma.auditLog.count(),
+    ]);
+
+    return { data, total, skip, take };
+  }
+
+  async getPermissions() {
+    return this.prisma.permission.findMany({
+      orderBy: { key: 'asc' },
+      include: {
+        rolePermissions: {
+          select: { role: true },
+        },
+      },
+    });
+  }
+
+  async updatePermissions(role: UserRole, permissionKeys: string[]) {
+    const permissions = await this.prisma.permission.findMany({
+      where: { key: { in: permissionKeys } },
+      select: { id: true, key: true },
+    });
+    if (permissions.length !== new Set(permissionKeys).size) {
+      throw new BadRequestException('One or more permission keys are invalid');
+    }
+
+    await this.prisma.$transaction([
+      this.prisma.rolePermission.deleteMany({ where: { role } }),
+      this.prisma.rolePermission.createMany({
+        data: permissions.map(({ id: permissionId }) => ({ role, permissionId })),
+      }),
+    ]);
+
+    return this.getPermissions();
   }
 
   // ============================================
@@ -402,6 +550,19 @@ export class UsersService {
       throw new ConflictException('Email already exists');
     }
 
+    if (data.studentId) {
+      if (!data.relationship) {
+        throw new BadRequestException('Relationship is required when linking a student');
+      }
+
+      const student = await this.prisma.student.findUnique({
+        where: { id: data.studentId },
+      });
+      if (!student) {
+        throw new NotFoundException('Student not found');
+      }
+    }
+
     const passwordHash = await bcrypt.hash(data.password, 12);
 
     const user = await this.prisma.user.create({
@@ -425,6 +586,19 @@ export class UsersService {
       },
       include: { parent: true, refreshTokens: true },
     });
+
+    if (data.studentId) {
+      if (!data.relationship) {
+        throw new BadRequestException('Relationship is required when linking a student');
+      }
+
+      await this.linkParentToStudent(
+        user.parent!.id,
+        data.studentId,
+        data.relationship,
+        data.isPrimary ?? true,
+      );
+    }
 
     const { passwordHash: _, refreshTokens, ...result } = user;
     return result;

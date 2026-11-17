@@ -22,7 +22,7 @@ export const useAuthStore = create<AuthState>()(
       accessToken: null,
       refreshToken: null,
       isAuthenticated: false,
-      isLoading: true,
+      isLoading: false, // Changed from true to false
 
       setAuth: (user, accessToken, refreshToken) =>
         set({
@@ -61,9 +61,14 @@ export const useAuthStore = create<AuthState>()(
       partialize: (state) => ({
         user: state.user,
         accessToken: state.accessToken,
-        refreshToken: state.refreshToken,
         isAuthenticated: state.isAuthenticated,
       }),
+      onRehydrateStorage: () => (state) => {
+        // Set isLoading to false after rehydration
+        if (state) {
+          state.isLoading = false;
+        }
+      },
     }
   )
 );
@@ -102,4 +107,5 @@ export const useIsAdmin = () => useAuthStore((state) => state.hasRole("ADMIN"));
 export const useIsTeacher = () => useAuthStore((state) => state.hasRole("TEACHER"));
 export const useIsStudent = () => useAuthStore((state) => state.hasRole("STUDENT"));
 export const useIsParent = () => useAuthStore((state) => state.hasRole("PARENT"));
-export const useIsStaff = () => useAuthStore((state) => state.hasRole(["ADMIN", "TEACHER"]));
+export const useIsCashier = () => useAuthStore((state) => state.hasRole("CASHIER"));
+export const useIsStaff = () => useAuthStore((state) => state.hasRole(["ADMIN", "TEACHER", "CASHIER"]));

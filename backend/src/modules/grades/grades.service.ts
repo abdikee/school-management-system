@@ -588,6 +588,32 @@ export class GradesService {
     };
   }
 
+  async getSubjectsForStudent(studentId: string) {
+    const student = await this.prisma.student.findUnique({
+      where: { id: studentId },
+      select: { classId: true },
+    });
+
+    if (!student) {
+      throw new NotFoundException('Student not found');
+    }
+
+    if (!student.classId) {
+      return { data: [], total: 0 };
+    }
+
+    const classSubjects = await this.prisma.classSubject.findMany({
+      where: { classId: student.classId },
+      include: { subject: true },
+      orderBy: { subject: { name: 'asc' } },
+    });
+
+    return {
+      data: classSubjects.map(({ subject }) => subject),
+      total: classSubjects.length,
+    };
+  }
+
   // ============================================
   // REPORT CARD OPERATIONS
   // ============================================

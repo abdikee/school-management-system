@@ -91,6 +91,9 @@ export function TeacherClasses() {
   const [students, setStudents] = useState<Student[]>([]);
   const [attendanceRecords, setAttendanceRecords] = useState<Record<string, string>>({});
   const [isLoadingStudents, setIsLoadingStudents] = useState(false);
+  const [selectedItem, setSelectedItem] = useState<any>(null);
+  const [createDialogOpen, setCreateDialogOpen] = useState(false);
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
 
   const queryClient = useQueryClient();
 
@@ -1014,7 +1017,7 @@ export function TeacherClasses() {
       </div>
 
       {/* Tabs */}
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
+      <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as typeof activeTab)} className="space-y-4">
         <TabsList className="grid w-full grid-cols-2 md:grid-cols-5">
           {teacherClassesTabs.map((tab) => (
             <TabsTrigger key={tab.id} value={tab.id} className="flex items-center justify-center gap-2">

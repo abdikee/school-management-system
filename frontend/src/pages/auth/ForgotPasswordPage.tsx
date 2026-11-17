@@ -11,7 +11,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { useForgotPassword } from "@/hooks/useAuth";
-import { toast } from "@/hooks/useToast";
+import { toast } from "sonner";
+import type { ForgotPasswordDto } from "@/types/api";
 
 const forgotPasswordSchema = z.object({
   email: z.string().email("Please enter a valid email address"),
@@ -23,7 +24,6 @@ export function ForgotPasswordPage() {
   const navigate = useNavigate();
   const [isLoading, setIsLoading] = useState(false);
   const forgotPasswordMutation = useForgotPassword();
-  const { toast } = toast();
 
   const {
     register,
@@ -39,19 +39,16 @@ export function ForgotPasswordPage() {
   const onSubmit = async (data: ForgotPasswordFormData) => {
     setIsLoading(true);
     try {
-      await forgotPasswordMutation.mutateAsync(data);
-      toast({
-        title: "Email sent!",
+      // Cast to ForgotPasswordDto to satisfy TypeScript (defaultValues makes fields optional in inferred type)
+      await forgotPasswordMutation.mutateAsync(data as ForgotPasswordDto);
+      toast.success("Email sent!", {
         description: "If the email exists, a password reset link has been sent.",
-        variant: "success",
       });
       navigate("/login");
     } catch (error: any) {
       // Don't reveal if email exists or not for security
-      toast({
-        title: "Email sent!",
+      toast.success("Email sent!", {
         description: "If the email exists, a password reset link has been sent.",
-        variant: "success",
       });
       navigate("/login");
     } finally {

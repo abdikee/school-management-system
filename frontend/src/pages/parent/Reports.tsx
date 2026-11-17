@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -16,6 +17,7 @@ import { Download, RefreshCw, Calendar, ClipboardCheck, Award, BarChart3, Trendi
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
 import { Term } from "@/types/api";
+import { financeApi } from "@/services/api";
 
 export function ParentReports() {
   const [selectedChildId, setSelectedChildId] = useState("");
@@ -50,6 +52,11 @@ export function ParentReports() {
     selectedChild?.studentId || "",
     { academicYearId: academicYearId || undefined, classSubjectId: classSubjectId || undefined, term: term || undefined }
   );
+  const { data: childInvoices, isLoading: invoicesLoading } = useQuery({
+    queryKey: ["parent-report-invoices", selectedChild?.studentId],
+    queryFn: () => financeApi.getInvoices({ studentId: selectedChild!.studentId, take: 50 }),
+    enabled: !!selectedChild?.studentId && activeTab === "fees",
+  });
 
   const handleRefresh = () => {
     refetchAttendance();
@@ -493,7 +500,7 @@ export function ParentReports() {
               <CardContent>
                 <div className="text-3xl font-bold text-green-600">
                   {(() => {
-                    const total = Object.values(gradeDist).reduce((a, b) => a + b, 0);
+                    const total = Object.values(gradeDist as Record<string, number>).reduce((a, b) => a + b, 0);
                     const pass = (gradeDist["60-69"] || 0) + (gradeDist["70-79"] || 0) + (gradeDist["80-89"] || 0) + (gradeDist["90-100"] || 0);
                     return total > 0 ? ((pass / total) * 100).toFixed(1) : 0;
                   })()}%
@@ -607,7 +614,18 @@ export function ParentReports() {
             <CardTitle>Fee Invoices - {selectedChild.firstName} {selectedChild.lastName}</CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-center py-8 text-muted-foreground">Fee management coming soon</p>
+            {invoicesLoading ? (
+              <p className="py-8 text-center text-muted-foreground">Loading invoices...</p>
+            ) : childInvoices?.data?.length ? (
+              <div className="space-y-3">
+                {childInvoices.data.map((invoice: any) => (
+                  <div key={invoice.id} className="flex flex-col gap-2 rounded-lg border p-4 sm:flex-row sm:items-center sm:justify-between">
+                    <div><p className="font-medium">{invoice.feeStructure?.name || invoice.invoiceNumber}</p><p className="text-sm text-muted-foreground">Due {format(new Date(invoice.dueDate), "MMM dd, yyyy")}</p></div>
+                    <div className="text-right"><p className="font-semibold">{invoice.totalAmount}</p><p className="text-xs font-medium text-muted-foreground">{invoice.status}</p></div>
+                  </div>
+                ))}
+              </div>
+            ) : <p className="py-8 text-center text-muted-foreground">No invoices available.</p>}
           </CardContent>
         </Card>
       )}

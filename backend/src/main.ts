@@ -5,7 +5,9 @@ import helmet from 'helmet';
 import { AppModule } from './app.module';
 import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
 import { ResponseInterceptor } from './common/interceptors/response.interceptor';
+import { AuditInterceptor } from './common/interceptors/audit.interceptor';
 import { ValidationPipe as CustomValidationPipe } from './common/pipes/validation.pipe';
+import { PrismaService } from './prisma/prisma.service';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
@@ -28,6 +30,7 @@ async function bootstrap() {
 
   // Global interceptors
   app.useGlobalInterceptors(new ResponseInterceptor());
+  app.useGlobalInterceptors(new AuditInterceptor(app.get(PrismaService)));
 
   // Global filters
   app.useGlobalFilters(new AllExceptionsFilter());

@@ -80,7 +80,7 @@ const financeTabs = [
 type FinanceTab = (typeof financeTabs)[number]["id"];
 
 export function AdminFinance() {
-  const [activeTab, setActiveTab] = useState<FinanceTab>("fee-structures");
+  const [activeTab, setActiveTab] = useState<string>("fee-structures");
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
@@ -164,15 +164,13 @@ export function AdminFinance() {
   // INVOICES
   // ============================================
   const { data: invoicesData, isLoading: invoicesLoading } = useQuery({
-    queryKey: ["invoices", selectedClassId, selectedFeeStructureId, statusFilter, dateFrom, dateTo, page, pageSize],
+    queryKey: ["invoices", selectedFeeStructureId, statusFilter, dateFrom, dateTo, page, pageSize],
     queryFn: () => financeApi.getInvoices({
       skip: (page - 1) * pageSize,
       take: pageSize,
-      classId: selectedClassId || undefined,
       feeStructureId: selectedFeeStructureId || undefined,
       status: statusFilter || undefined,
-      dateFrom: dateFrom || undefined,
-      dateTo: dateTo || undefined,
+      // dateFrom and dateTo are not supported by the API
     }),
   });
 
@@ -213,8 +211,8 @@ export function AdminFinance() {
     queryFn: () => financeApi.getPayments({
       skip: (page - 1) * pageSize,
       take: pageSize,
-      dateFrom: dateFrom || undefined,
-      dateTo: dateTo || undefined,
+      paidAtFrom: dateFrom || undefined,
+      paidAtTo: dateTo || undefined,
     }),
   });
 
@@ -429,18 +427,6 @@ export function AdminFinance() {
       <Card>
         <CardContent className="pt-6">
           <div className="flex flex-col sm:flex-row gap-4">
-            <div className="w-full sm:w-48">
-              <Label className="block text-sm font-medium mb-1">Class</Label>
-              <Select value={selectedClassId} onValueChange={(value) => { setSelectedClassId(value); setPage(1); }}>
-                <SelectTrigger><SelectValue placeholder="Select class" /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="">All Classes</SelectItem>
-                  {classesData?.data?.map((c: Class) => (
-                    <SelectItem key={c.id} value={c.id}>{c.name} ({c.gradeLevel?.name})</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
             <div className="w-full sm:w-48">
               <Label className="block text-sm font-medium mb-1">Fee Structure</Label>
               <Select value={selectedFeeStructureId} onValueChange={(value) => { setSelectedFeeStructureId(value); setPage(1); }}>
@@ -835,7 +821,7 @@ export function AdminFinance() {
                   {feeCollectionReport.invoices.map((item: any) => (
                     <TableRow key={item.invoice.id}>
                       <TableCell className="font-medium">{item.invoice.invoiceNumber}</TableCell>
-                      <TableCell>{item.student?.user?.firstName} {item.student?.user?.lastName}</TableCell>
+                      <TableCell>{item.student?.name || "—"}</TableCell>
                       <TableCell>{item.feeStructure?.name || "—"}</TableCell>
                       <TableCell>{formatCurrency(item.amount)}</TableCell>
                       <TableCell className="text-green-600 font-medium">{formatCurrency(item.paidAmount)}</TableCell>

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { financeApi, usersApi } from "@/services/api";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -31,7 +31,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Search, Download, CreditCard, AlertCircle, CheckCircle, Clock, DollarSign, ChevronLeft, ChevronRight, Users } from "lucide-react";
 import { cn, formatDate, formatCurrency } from "@/lib/utils";
-import { Invoice, Payment, FeeStructure, Student } from "@/types/api";
+import { Invoice, Payment, FeeStructure, Student, Parent } from "@/types/api";
 
 const parentFeeTabs = [
   { id: "invoices", label: "Invoices", icon: DollarSign },
@@ -49,17 +49,32 @@ export function ParentFees() {
   const [statusFilter, setStatusFilter] = useState("");
   const [selectedChildId, setSelectedChildId] = useState("");
 
-  // Get current parent's children
+  // Get current user profile
   const { data: currentUser } = useQuery({
     queryKey: ["current-user"],
     queryFn: () => usersApi.getProfile(),
   });
 
-  const children = currentUser?.data?.parent?.children || [];
+  // Get parent's children - fetch parent record if user is a parent
+  const { data: parentData, isLoading: parentLoading } = useQuery({
+    queryKey: ["parent-data", currentUser?.id],
+    queryFn: async () => {
+      if (!currentUser || currentUser.role !== "PARENT") return null;
+      const parentsResponse = await usersApi.getParents({ search: "", take: 100 });
+      const parent = parentsResponse.data.find((p: Parent) => p.userId === currentUser.id);
+      return parent;
+    },
+    enabled: !!currentUser && currentUser.role === "PARENT",
+  });
 
-  if (children.length > 0 && !selectedChildId) {
-    setSelectedChildId(children[0].id);
-  }
+  const children = parentData?.students || [];
+
+  // Auto-select first child if none selected
+  useEffect(() => {
+    if (children.length > 0 && !selectedChildId) {
+      setSelectedChildId(children[0].id);
+    }
+  }, [children, selectedChildId]);
 
   const selectedChild = children.find((c: Student) => c.id === selectedChildId);
 
@@ -72,7 +87,7 @@ export function ParentFees() {
       studentId: selectedChildId || undefined,
       skip: (page - 1) * pageSize,
       take: pageSize,
-      search: search || undefined,
+      // search not supported by getInvoices API
       status: statusFilter || undefined,
     }),
     enabled: !!selectedChildId,
@@ -87,7 +102,7 @@ export function ParentFees() {
       studentId: selectedChildId || undefined,
       skip: (page - 1) * pageSize,
       take: pageSize,
-      search: search || undefined,
+      // search not supported by getPayments API
     }),
     enabled: !!selectedChildId,
   });
@@ -103,7 +118,7 @@ export function ParentFees() {
     enabled: !!selectedChildId,
   });
 
-  if (!selectedChild) {
+  if (parentLoading || !selectedChild) {
     return (
       <div className="space-y-6">
         <div>
@@ -113,7 +128,7 @@ export function ParentFees() {
         <Card>
           <CardContent className="py-12 text-center">
             <Users className="mx-auto h-12 w-12 text-gray-300 mb-4" />
-            <p className="text-gray-500">No children linked to your account</p>
+            <p className="text-gray-500">Loading children...</p>
           </CardContent>
         </Card>
       </div>
@@ -173,7 +188,7 @@ export function ParentFees() {
               <div>
                 <p className="text-sm text-gray-500">Overdue</p>
                 <p className="text-2xl font-bold text-red-600">
-                  {formatCurrency(invoicesData?.data?.filter((i: Invoice) => i.status === "OVERDUE").reduce((sum: number, i: Invoice) => sum + Number(i.balance), 0) || 0)}
+                  {formatCurrency(invoicesData?.data?.filter((i: Invoice) => i.status === "OVERDUE").reduce((sum: number, i: Invoice) => sum + Number(i.totalAmount), 0) || 0)}
                 </p>
               </div>
             </div>
@@ -186,7 +201,7 @@ export function ParentFees() {
               <div>
                 <p className="text-sm text-gray-500">Pending</p>
                 <p className="text-2xl font-bold text-yellow-600">
-                  {formatCurrency(invoicesData?.data?.filter((i: Invoice) => i.status === "PENDING").reduce((sum: number, i: Invoice) => sum + Number(i.balance), 0) || 0)}
+                  {formatCurrency(invoicesData?.data?.filter((i: Invoice) => i.status === "PENDING").reduce((sum: number, i: Invoice) => sum + Number(i.totalAmount), 0) || 0)}
                 </p>
               </div>
             </div>
@@ -212,7 +227,7 @@ export function ParentFees() {
               <div>
                 <p className="text-sm text-gray-500">Total Balance</p>
                 <p className="text-2xl font-bold text-gray-900">
-                  {formatCurrency(invoicesData?.data?.reduce((sum: number, i: Invoice) => sum + Number(i.balance), 0) || 0)}
+                  {formatCurrency(invoicesData?.data?.filter((i: Invoice) => i.status !== "PAID" && i.status !== "CANCELLED").reduce((sum: number, i: Invoice) => sum + Number(i.totalAmount), 0) || 0)}
                 </p>
               </div>
             </div>
@@ -240,7 +255,6 @@ export function ParentFees() {
                   <TableHead>Term</TableHead>
                   <TableHead>Due Date</TableHead>
                   <TableHead>Total Amount</TableHead>
-                  <TableHead>Paid</TableHead>
                   <TableHead>Balance</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead className="text-right">Actions</TableHead>
@@ -249,40 +263,43 @@ export function ParentFees() {
               <TableBody>
                 {invoicesLoading ? (
                   <TableRow>
-                    <TableCell colSpan={9} className="text-center py-8">
+                    <TableCell colSpan={8} className="text-center py-8">
                       <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent mx-auto" />
                     </TableCell>
                   </TableRow>
                 ) : invoicesData?.data?.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={9} className="text-center py-8 text-muted-foreground">
+                    <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
                       No invoices found
                     </TableCell>
                   </TableRow>
                 ) : (
-                  invoicesData?.data?.map((invoice: Invoice) => (
-                    <TableRow key={invoice.id}>
-                      <TableCell className="font-mono text-sm">{invoice.invoiceNumber}</TableCell>
-                      <TableCell>{invoice.feeStructure?.name}</TableCell>
-                      <TableCell>{invoice.feeStructure?.academicYear?.name}</TableCell>
-                      <TableCell>{formatDate(invoice.dueDate)}</TableCell>
-                      <TableCell>{formatCurrency(invoice.totalAmount)}</TableCell>
-                      <TableCell>{formatCurrency(invoice.paidAmount)}</TableCell>
-                      <TableCell className={Number(invoice.balance) > 0 ? "text-red-600 font-medium" : "text-green-600"}>
-                        {formatCurrency(invoice.balance)}
-                      </TableCell>
-                      <TableCell>
-                        <Badge variant={getInvoiceStatusVariant(invoice.status)}>
-                          {invoice.status}
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <Button variant="ghost" size="icon" className="text-primary" disabled>
-                          <CreditCard className="h-4 w-4" />
-                        </Button>
-                      </TableCell>
-                    </TableRow>
-                  ))
+                  invoicesData?.data?.map((invoice: Invoice) => {
+                    const isPaid = invoice.status === "PAID";
+                    const balance = isPaid ? 0 : Number(invoice.totalAmount);
+                    return (
+                      <TableRow key={invoice.id}>
+                        <TableCell className="font-mono text-sm">{invoice.invoiceNumber}</TableCell>
+                        <TableCell>{invoice.feeStructure?.name}</TableCell>
+                        <TableCell>{invoice.feeStructure?.academicYear?.name}</TableCell>
+                        <TableCell>{formatDate(invoice.dueDate)}</TableCell>
+                        <TableCell>{formatCurrency(invoice.totalAmount)}</TableCell>
+                        <TableCell className={balance > 0 ? "text-red-600 font-medium" : "text-green-600"}>
+                          {formatCurrency(balance)}
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant={getInvoiceStatusVariant(invoice.status)}>
+                            {invoice.status}
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <Button variant="ghost" size="icon" className="text-primary" disabled>
+                            <CreditCard className="h-4 w-4" />
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })
                 )}
               </TableBody>
             </Table>
@@ -348,38 +365,32 @@ export function ParentFees() {
                   <TableHead>Amount</TableHead>
                   <TableHead>Method</TableHead>
                   <TableHead>Reference</TableHead>
-                  <TableHead>Status</TableHead>
                   <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {paymentsLoading ? (
                   <TableRow>
-                    <TableCell colSpan={7} className="text-center py-8">
+                    <TableCell colSpan={6} className="text-center py-8">
                       <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent mx-auto" />
                     </TableCell>
                   </TableRow>
                 ) : paymentsData?.data?.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
+                    <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
                       No payment history found
                     </TableCell>
                   </TableRow>
                 ) : (
                   paymentsData?.data?.map((payment: Payment) => (
                     <TableRow key={payment.id}>
-                      <TableCell>{formatDate(payment.paymentDate)}</TableCell>
+                      <TableCell>{formatDate(payment.paidAt)}</TableCell>
                       <TableCell className="font-mono text-sm">{payment.invoice?.invoiceNumber}</TableCell>
                       <TableCell className="font-medium">{formatCurrency(payment.amount)}</TableCell>
                       <TableCell>
-                        <Badge variant="secondary">{payment.paymentMethod}</Badge>
+                        <Badge variant="secondary">{payment.method}</Badge>
                       </TableCell>
-                      <TableCell>{payment.referenceNumber || "—"}</TableCell>
-                      <TableCell>
-                        <Badge variant={payment.status === "COMPLETED" ? "default" : payment.status === "PENDING" ? "secondary" : "destructive"}>
-                          {payment.status}
-                        </Badge>
-                      </TableCell>
+                      <TableCell>{payment.reference || "—"}</TableCell>
                       <TableCell className="text-right">
                         <Button variant="ghost" size="icon" className="text-primary" disabled>
                           <Download className="h-4 w-4" />
@@ -473,8 +484,8 @@ export function ParentFees() {
         </div>
         <div className="flex items-center gap-2">
           {children.length > 1 && (
-            <Select value={selectedChildId} onValueChange={setSelectedChildId} className="w-48">
-              <SelectTrigger><SelectValue placeholder="Select child" /></SelectTrigger>
+            <Select value={selectedChildId} onValueChange={setSelectedChildId}>
+              <SelectTrigger className="w-48"><SelectValue placeholder="Select child" /></SelectTrigger>
               <SelectContent>
                 {children.map((child: Student) => (
                   <SelectItem key={child.id} value={child.id}>
@@ -488,7 +499,7 @@ export function ParentFees() {
       </div>
 
       {/* Tabs */}
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
+      <Tabs value={activeTab} onValueChange={(value: string) => setActiveTab(value as ParentFeeTab)} className="space-y-4">
         <TabsList className="grid w-full grid-cols-3">
           {parentFeeTabs.map((tab) => (
             <TabsTrigger key={tab.id} value={tab.id} className="flex items-center justify-center gap-2">

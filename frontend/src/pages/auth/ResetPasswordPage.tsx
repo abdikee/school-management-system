@@ -11,7 +11,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { useResetPassword } from "@/hooks/useAuth";
-import { toast } from "@/hooks/useToast";
+import { toast } from "sonner";
 
 const resetPasswordSchema = z.object({
   password: z.string().min(8, "Password must be at least 8 characters"),
@@ -30,7 +30,6 @@ export function ResetPasswordPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const resetPasswordMutation = useResetPassword();
-  const { toast } = toast();
 
   const {
     register,
@@ -46,10 +45,8 @@ export function ResetPasswordPage() {
 
   const onSubmit = async (data: ResetPasswordFormData) => {
     if (!token) {
-      toast({
-        title: "Invalid reset link",
+      toast.error("Invalid reset link", {
         description: "This password reset link is invalid or has expired.",
-        variant: "destructive",
       });
       navigate("/forgot-password");
       return;
@@ -61,17 +58,13 @@ export function ResetPasswordPage() {
         token,
         newPassword: data.password,
       });
-      toast({
-        title: "Password reset!",
+      toast.success("Password reset!", {
         description: "Your password has been successfully reset.",
-        variant: "success",
       });
       navigate("/login");
     } catch (error: any) {
-      toast({
-        title: "Reset failed",
+      toast.error("Reset failed", {
         description: error.response?.data?.message || "Failed to reset password. The link may have expired.",
-        variant: "destructive",
       });
     } finally {
       setIsLoading(false);

@@ -7,6 +7,7 @@ import {
   Body,
   Param,
   Query,
+  BadRequestException,
   UseGuards,
   HttpCode,
   HttpStatus,
@@ -17,6 +18,7 @@ import { UsersService } from './users.service';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
+import { Permissions } from '../../common/decorators/permissions.decorator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { UserRole, UserStatus, Gender } from '@prisma/client';
 import { Prisma } from '@prisma/client';
@@ -56,6 +58,58 @@ export class UsersController {
     });
   }
 
+  @Get('activity')
+  @Roles(UserRole.ADMIN)
+  @Permissions('audit.read')
+  @ApiOperation({ summary: 'Get recent platform activity' })
+  async getActivity(
+    @Query('skip') skip?: number,
+    @Query('take') take?: number,
+  ) {
+    return this.usersService.getActivity({
+      skip: skip ? Number(skip) : 0,
+      take: take ? Number(take) : 50,
+    });
+  }
+
+  @Get('permissions')
+  @Roles(UserRole.ADMIN)
+  @Permissions('user.manage')
+  @ApiOperation({ summary: 'List permissions and role assignments' })
+  async getPermissions() {
+    return this.usersService.getPermissions();
+  }
+
+  @Put('permissions/:role')
+  @Roles(UserRole.ADMIN)
+  @Permissions('user.manage')
+  @ApiOperation({ summary: 'Replace permissions assigned to a role' })
+  async updatePermissions(
+    @Param('role') role: UserRole,
+    @Body('permissionKeys') permissionKeys: string[],
+  ) {
+    if (!Object.values(UserRole).includes(role) || !Array.isArray(permissionKeys)) {
+      throw new BadRequestException('A valid role and permissionKeys array are required');
+    }
+    return this.usersService.updatePermissions(role, permissionKeys);
+  }
+
+  @Post('cashiers')
+  @Roles(UserRole.ADMIN)
+  @Permissions('user.manage')
+  @HttpCode(HttpStatus.CREATED)
+  @ApiOperation({ summary: 'Create a cashier account' })
+  async createCashier(@Body() data: {
+    email: string;
+    password: string;
+    firstName: string;
+    lastName: string;
+    phone?: string;
+    schoolId?: string;
+  }) {
+    return this.usersService.createCashier(data);
+  }
+
   @Get('profile')
   @ApiOperation({ summary: 'Get current user profile' })
   async getProfile(@CurrentUser('id') userId: string) {
@@ -80,12 +134,48 @@ export class UsersController {
 
   @Put(':id/status')
   @Roles(UserRole.ADMIN)
+  @Permissions('user.manage')
   @ApiOperation({ summary: 'Update user status' })
   async updateStatus(
     @Param('id') id: string,
     @Body('status') status: UserStatus,
   ) {
     return this.usersService.updateStatus(id, status);
+  }
+
+  @Post(':id/activate')
+  @Roles(UserRole.ADMIN)
+  @Permissions('user.manage')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Activate a pending user account' })
+  async activate(@Param('id') id: string) {
+    return this.usersService.activate(id);
+  }
+
+  @Post(':id/invite')
+  @Roles(UserRole.ADMIN)
+  @Permissions('user.manage')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Create an account invitation for a user' })
+  async invite(@Param('id') id: string) {
+    return this.usersService.createInvitation(id);
+  }
+
+  @Post(':id/reset-password')
+  @Roles(UserRole.ADMIN)
+  @Permissions('user.manage')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Reset a user password as an administrator' })
+  async resetPassword(
+    @Param('id') id: string,
+    @Body('newPassword') newPassword: string,
+  ) {
+    if (!newPassword || newPassword.length < 8) {
+      throw new BadRequestException('New password must be at least 8 characters');
+    }
+
+    await this.usersService.resetPassword(id, newPassword);
+    return { message: 'Password reset successfully' };
   }
 
   @Delete(':id')
@@ -266,6 +356,9 @@ export class UsersController {
     occupation?: string;
     address?: string;
     schoolId?: string;
+    studentId?: string;
+    relationship?: string;
+    isPrimary?: boolean;
   }) {
     return this.usersService.createParent({
       ...data,

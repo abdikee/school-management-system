@@ -1,5 +1,5 @@
 // Enums
-export type UserRole = "ADMIN" | "TEACHER" | "STUDENT" | "PARENT";
+export type UserRole = "ADMIN" | "TEACHER" | "STUDENT" | "PARENT" | "CASHIER";
 export type UserStatus = "ACTIVE" | "INACTIVE" | "PENDING" | "SUSPENDED";
 export type Gender = "MALE" | "FEMALE" | "OTHER";
 export type AttendanceStatus = "PRESENT" | "ABSENT" | "LATE" | "EXCUSED";
@@ -26,6 +26,14 @@ export interface User {
   schoolId?: string;
   createdAt: string;
   updatedAt: string;
+  student?: Student;
+  teacher?: Teacher;
+  parent?: Parent;
+  data?: {
+    student?: Student;
+    teacher?: Teacher;
+    parent?: Parent;
+  };
 }
 
 export interface School {
@@ -74,6 +82,8 @@ export interface Subject {
   color?: string;
   createdAt: string;
   updatedAt: string;
+  subject?: Subject;
+  class?: Class;
 }
 
 export interface Class {
@@ -93,6 +103,7 @@ export interface Class {
     students: number;
     classSubjects: number;
     timetableEntries: number;
+    subjects?: number;
   };
 }
 
@@ -140,6 +151,7 @@ export interface Parent {
   createdAt: string;
   updatedAt: string;
   students?: Student[];
+  children?: Student[];
 }
 
 export interface Attendance {
@@ -171,6 +183,8 @@ export interface AttendanceSession {
   notes?: string;
   createdAt: string;
   updatedAt: string;
+  subject?: Subject;
+  class?: Class;
 }
 
 export interface AssessmentType {
@@ -187,6 +201,7 @@ export interface AssessmentType {
 export interface Assessment {
   id: string;
   name: string;
+  title?: string;
   typeId: string;
   type: AssessmentType;
   classSubjectId: string;
@@ -202,6 +217,7 @@ export interface Assessment {
   createdById: string;
   createdAt: string;
   updatedAt: string;
+  subject?: Subject;
 }
 
 export interface Grade {
@@ -216,6 +232,9 @@ export interface Grade {
   isPublished: boolean;
   createdAt: string;
   updatedAt: string;
+  assessment?: Assessment;
+  percentage?: number;
+  letterGrade?: string;
 }
 
 export interface FeeStructure {
@@ -225,7 +244,9 @@ export interface FeeStructure {
   amount: number;
   frequency: FeeFrequency;
   gradeLevelId?: string;
+  gradeLevel?: GradeLevel;
   academicYearId: string;
+  academicYear?: AcademicYear;
   schoolId: string;
   dueDay: number;
   isActive: boolean;
@@ -238,9 +259,13 @@ export interface Invoice {
   id: string;
   invoiceNumber: string;
   studentId: string;
+  student?: Student;
   parentId?: string;
+  parent?: Parent;
   feeStructureId: string;
+  feeStructure?: FeeStructure;
   academicYearId: string;
+  academicYear?: AcademicYear;
   amount: number;
   discount: number;
   tax: number;
@@ -252,21 +277,29 @@ export interface Invoice {
   paidAt?: string;
   createdAt: string;
   updatedAt: string;
+  paidAmount?: number;
+  balance?: number;
 }
 
 export interface Payment {
   id: string;
   invoiceId: string;
+  invoice?: Invoice;
   amount: number;
   method: PaymentMethod;
   transactionId?: string;
   reference?: string;
   paidAt: string;
   recordedById: string;
+  recordedBy?: User;
   notes?: string;
   receiptUrl?: string;
   createdAt: string;
   updatedAt: string;
+  paymentDate?: string;
+  paymentMethod?: PaymentMethod;
+  referenceNumber?: string;
+  status?: string;
 }
 
 export interface TimetableEntry {
@@ -310,7 +343,9 @@ export interface Announcement {
   author?: User;
   targetRoles: UserRole[];
   targetClassId?: string;
+  targetClass?: Class;
   targetGradeLevelId?: string;
+  targetGradeLevel?: GradeLevel;
   isPublished: boolean;
   publishedAt?: string;
   expiresAt?: string;
@@ -322,6 +357,7 @@ export interface Announcement {
 export interface Notification {
   id: string;
   userId: string;
+  user?: User;
   type: NotificationType;
   title: string;
   body: string;
@@ -331,6 +367,22 @@ export interface Notification {
   readAt?: string;
   sentAt?: string;
   createdAt: string;
+}
+
+export type SearchResultType = "user" | "class" | "subject" | "message" | "announcement";
+
+export interface SearchResult {
+  type: SearchResultType;
+  id: string;
+  title: string;
+  description: string;
+  href: string;
+}
+
+export interface SearchResponse {
+  query: string;
+  total: number;
+  results: SearchResult[];
 }
 
 // Auth types
@@ -346,6 +398,21 @@ export interface RegisterDto {
   lastName: string;
   role: UserRole;
   schoolId?: string;
+}
+
+export interface StudentRegistrationDto {
+  firstName: string;
+  lastName: string;
+  email: string;
+  password: string;
+  phone?: string;
+  dateOfBirth: string;
+  gender: Gender;
+}
+
+export interface StudentRegistrationResponse {
+  message: string;
+  studentId: string;
 }
 
 export interface AuthTokens {
@@ -424,13 +491,16 @@ export interface TeacherDashboard {
 }
 
 export interface StudentDashboard {
+  studentId?: string;
   attendance?: {
     rate?: number;
     records?: number;
+    studentId?: string;
   };
   grades?: {
     overall?: number;
     subjects?: number;
+    studentId?: string;
   };
   fees?: {
     pendingInvoices?: number;
@@ -444,6 +514,11 @@ export interface ParentDashboard {
     attendance: { rate: number; records: number };
     grades: { overall: number; subjects: number };
     fees: { pendingInvoices: number };
+    id?: string;
+    studentId?: string;
+    firstName?: string;
+    lastName?: string;
+    class?: Class;
   }>;
   notifications?: number;
 }
@@ -456,6 +531,13 @@ export interface AttendanceSummary {
   late: number;
   excused: number;
   attendanceRate: number;
+  total?: number;
+  PRESENT?: number;
+  ABSENT?: number;
+  LATE?: number;
+  presentCount?: number;
+  absentCount?: number;
+  lateCount?: number;
 }
 
 export interface StudentAttendanceReport {
@@ -478,15 +560,31 @@ export interface ClassAttendanceReport {
 }
 
 export interface AttendanceTrends {
-  labels: string[];
-  data: Array<{
+  data?: Array<{
     date: string;
     present: number;
     absent: number;
     late: number;
     excused: number;
     rate: number;
+    attendanceRate?: number;
   }>;
+  labels: string[];
+  trends: Array<{
+    date: string;
+    present: number;
+    absent: number;
+    late: number;
+    excused: number;
+    rate: number;
+    attendanceRate?: number;
+  }>;
+  totalRecords: number;
+  presentCount: number;
+  absentCount: number;
+  lateCount: number;
+  excusedCount: number;
+  attendanceRate: number;
 }
 
 export interface GradeSummary {
@@ -499,6 +597,14 @@ export interface GradeSummary {
     average: number;
     count: number;
   }>;
+  data?: GradeSummary;
+  distribution?: Array<{ label: string; count: number }>;
+  count?: number;
+  average?: number;
+  averagePercentage?: number;
+  passedCount?: number;
+  failedCount?: number;
+  subjectBreakdown?: Array<Record<string, any>>;
 }
 
 export interface StudentGradeReport {
@@ -530,6 +636,7 @@ export interface ClassGradeReport {
     subject: Subject;
     average: number;
   }>;
+  assessmentReports?: Array<Record<string, any>>;
 }
 
 export interface FinanceDashboard {
@@ -538,13 +645,19 @@ export interface FinanceDashboard {
   overdueAmount: number;
   collectedAmount: number;
   byFeeStructure: Array<{
-    feeStructure: FeeStructure;
+    feeStructure?: FeeStructure;
+    count?: number;
+    totalAmount?: number;
     total: number;
     collected: number;
     pending: number;
     overdue: number;
   }>;
   recentPayments: Payment[];
+  monthlyRevenue?: Array<{
+    month: string;
+    amount: number;
+  }>;
 }
 
 export interface FeeCollectionReport {
@@ -569,6 +682,8 @@ export interface FeeCollectionReport {
 
 export interface EnrollmentReport {
   totalStudents: number;
+  newEnrollmentsThisYear: number;
+  withdrawnStudents: number;
   byClass: Array<{
     class: Class;
     count: number;
@@ -579,9 +694,14 @@ export interface EnrollmentReport {
     gradeLevel: GradeLevel;
     count: number;
   }>;
+  byGender: Array<{
+    gender: string;
+    count: number;
+  }>;
 }
 
 export interface TeacherWorkloadReport {
+  totalTeachers: number;
   teachers: Array<{
     teacher: Teacher;
     classesCount: number;

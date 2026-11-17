@@ -65,6 +65,7 @@ export class AllExceptionsFilter implements ExceptionFilter {
       errors,
       statusCode: status,
       path: request.url,
+      requestId: request.header('x-request-id'),
       timestamp: new Date().toISOString(),
     });
   }

@@ -16,13 +16,17 @@ import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { UserRole, Term } from '@prisma/client';
+import { StudentAccessService } from '../../common/policies/student-access.service';
 
 @ApiTags('reports')
 @Controller('reports')
 @UseGuards(JwtAuthGuard, RolesGuard)
 @ApiBearerAuth()
 export class ReportsController {
-  constructor(private reportsService: ReportsService) {}
+  constructor(
+    private reportsService: ReportsService,
+    private studentAccess: StudentAccessService,
+  ) {}
 
   // ============================================
   // DASHBOARD OVERVIEW
@@ -135,15 +139,29 @@ export class ReportsController {
   ) {
     const parent = await this.reportsService['prisma'].parent.findUnique({
       where: { userId },
-      include: { students: { include: { user: true, class: { include: { gradeLevel: true } } } } },
+      include: {
+        students: { include: { user: true, class: { include: { gradeLevel: true } } } },
+        parentRelations: {
+          include: {
+            student: { include: { user: true, class: { include: { gradeLevel: true } } } },
+          },
+        },
+      },
     });
 
     if (!parent) {
       return { children: [], notifications: 0 };
     }
 
+    const linkedStudents = [
+      ...parent.students,
+      ...parent.parentRelations
+        .map((relation) => relation.student)
+        .filter((student) => !parent.students.some((directStudent) => directStudent.id === student.id)),
+    ];
+
     const childrenReports = await Promise.all(
-      parent.students.map(async (student) => {
+      linkedStudents.map(async (student) => {
         const [attendanceSummary, gradeReport, pendingInvoices] = await Promise.all([
           this.reportsService.getStudentAttendanceReport({ studentId: student.id, dateFrom: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000) }),
           this.reportsService.getStudentGradeReport({ studentId: student.id }),
@@ -199,10 +217,13 @@ export class ReportsController {
   @ApiQuery({ name: 'dateTo', required: false, type: String })
   async getStudentAttendanceReport(
     @Param('studentId') studentId: string,
+    @CurrentUser('id') userId: string,
+    @CurrentUser('role') role: UserRole,
     @Query('academicYearId') academicYearId?: string,
     @Query('dateFrom') dateFrom?: string,
     @Query('dateTo') dateTo?: string,
   ) {
+    await this.studentAccess.assertCanAccessStudent(userId, role, studentId);
     return this.reportsService.getStudentAttendanceReport({
       studentId,
       academicYearId,
@@ -294,10 +315,13 @@ export class ReportsController {
   @ApiQuery({ name: 'term', required: false, enum: Term })
   async getStudentGradeReport(
     @Param('studentId') studentId: string,
+    @CurrentUser('id') userId: string,
+    @CurrentUser('role') role: UserRole,
     @Query('academicYearId') academicYearId?: string,
     @Query('classSubjectId') classSubjectId?: string,
     @Query('term') term?: Term,
   ) {
+    await this.studentAccess.assertCanAccessStudent(userId, role, studentId);
     return this.reportsService.getStudentGradeReport({
       studentId,
       academicYearId,

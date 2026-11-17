@@ -52,12 +52,11 @@ import {
   Search,
   Edit,
   Eye,
-  Send,
   Bell,
   Mail,
   MessageSquare,
   Users,
-  PaperPlane,
+  Send,
   RotateCcw,
   Loader2,
   ChevronLeft,
@@ -628,7 +627,7 @@ export function TeacherCommunication() {
       </div>
 
       {/* Tabs */}
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
+      <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as typeof activeTab)} className="space-y-4">
         <TabsList className="grid w-full grid-cols-3">
           {teacherCommunicationTabs.map((tab) => (
             <TabsTrigger key={tab.id} value={tab.id} className="flex items-center justify-center gap-2">

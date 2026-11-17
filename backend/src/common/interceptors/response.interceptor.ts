@@ -18,10 +18,14 @@ export interface ApiResponse<T> {
 @Injectable()
 export class ResponseInterceptor<T> implements NestInterceptor<T, ApiResponse<T>> {
   intercept(context: ExecutionContext, next: CallHandler): Observable<ApiResponse<T>> {
+    const request = context.switchToHttp().getRequest<{ headers?: Record<string, string> }>();
+    const requestId = request.headers?.['x-request-id'];
+
     return next.handle().pipe(
       map((data) => ({
         success: true,
         data,
+        meta: requestId ? { requestId } : undefined,
         timestamp: new Date().toISOString(),
       })),
     );
